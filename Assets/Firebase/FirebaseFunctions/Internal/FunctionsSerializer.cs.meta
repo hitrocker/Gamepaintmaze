@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: e541bc156dab48618e0d59f285ec37cd
+labels:
+- gvh
+- gvh_version-13.13.0
+- gvhp_exportpath-Firebase/FirebaseFunctions/Internal/FunctionsSerializer.cs
+timeCreated: 1480838400
+DefaultImporter:
+  userData:
+  assetBundleName:
+  assetBundleVariant:

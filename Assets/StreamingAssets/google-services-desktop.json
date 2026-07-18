@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "560778352521",
+    "project_id": "hitrocker-paintmaze",
+    "storage_bucket": "hitrocker-paintmaze.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:560778352521:android:d1bf3c7e75f4f6be13b358",
+        "android_client_info": {
+          "package_name": "com.hitrocker.paintmaze"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "560778352521-bqoh4jmkoll7r4q27n1ujtivsb1p1rqo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hitrocker.paintmaze",
+            "certificate_hash": "2bb7146c058c83f07e326449c4f1a047967bfb01"
+          }
+        },
+        {
+          "client_id": "560778352521-c82r3gbdr5i7pkh0cpib9bf339cu0mto.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hitrocker.paintmaze",
+            "certificate_hash": "1c8341b34f61580314e02027b125ac1b6163a232"
+          }
+        },
+        {
+          "client_id": "560778352521-5eujrgf66non6jbmr82v0p7aqqnhboc6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATFj18hqTqHkLll6ikLDHlTE-g39LSTto"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "560778352521-5eujrgf66non6jbmr82v0p7aqqnhboc6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

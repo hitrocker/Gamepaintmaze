@@ -1,0 +1,8 @@
+<linker>
+  <!-- BoardView3D uses GameObject.CreatePrimitive at runtime and removes the generated colliders. -->
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.MeshCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+  </assembly>
+</linker>

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 23f94e0315c943e2a3a28b39da318313
+labels:
+- gvh
+- gvh_version-13.13.0
+- gvhp_exportpath-Firebase/FirebaseFunctions/Firebase.Functions.asmdef
+timeCreated: 1480838400
+DefaultImporter:
+  userData:
+  assetBundleName:
+  assetBundleVariant:

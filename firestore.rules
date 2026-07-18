@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function playableBoard(boardId) {
+      return boardId in ['easy', 'medium', 'hard', 'extraHard'];
+    }
+
+    function validLevel(level) {
+      return level is int && level >= 1 && level <= 2000000000;
+    }
+
+    function validName(name) {
+      return name is string
+        && name.size() >= 3
+        && name.size() <= 16
+        && name.matches('^[A-Za-z0-9 _-]+$');
+    }
+
+    function validShape() {
+      return request.resource.data.keys().hasAll(
+          ['highestLevel', 'displayName', 'reachedAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(
+          ['highestLevel', 'displayName', 'reachedAt', 'updatedAt']);
+    }
+
+    match /leaderboards/{boardId}/entries/{userId} {
+      allow read: if signedIn() && playableBoard(boardId);
+
+      allow create: if owns(userId)
+        && playableBoard(boardId)
+        && validShape()
+        && validLevel(request.resource.data.highestLevel)
+        && validName(request.resource.data.displayName)
+        && request.resource.data.reachedAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if owns(userId)
+        && playableBoard(boardId)
+        && validShape()
+        && validName(request.resource.data.displayName)
+        && (
+          (
+            validLevel(request.resource.data.highestLevel)
+            && request.resource.data.highestLevel > resource.data.highestLevel
+            && request.resource.data.reachedAt == request.time
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                ['highestLevel', 'displayName', 'reachedAt', 'updatedAt'])
+          )
+          ||
+          (
+            request.resource.data.highestLevel == resource.data.highestLevel
+            && request.resource.data.reachedAt == resource.data.reachedAt
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                ['displayName', 'updatedAt'])
+          )
+        );
+
+      allow delete: if owns(userId) && playableBoard(boardId);
+    }
+  }
+}

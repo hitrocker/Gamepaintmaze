@@ -1,0 +1,71 @@
+# Unity-generated folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Cc]rash[Rr]eports/
+
+# Unity-generated project files
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# IDE files
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.unitypackage
+
+# Firebase local and debug output
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Downloaded SDK archives
+/firebase_unity_sdk_*.zip
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Node dependencies
+**/node_modules/
+
+# Signing keys and local secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+*.pdb.meta
+*.mdb.meta
