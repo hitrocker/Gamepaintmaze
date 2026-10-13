@@ -66,9 +66,11 @@ namespace PaintMaze.Tests
         public void GeneratorVersions_AreScopedWithoutChangingFingerprintFormat()
         {
             Assert.AreEqual(3, LevelFingerprint.GeneratorVersion);
-            Assert.AreEqual(3, LevelGenerator.VersionFor(Difficulty.Easy));
-            Assert.AreEqual(6, LevelGenerator.VersionFor(Difficulty.ExtraHard));
-            Assert.AreEqual(6, LevelGenerator.VersionFor(Difficulty.UltraHard));
+            Assert.AreEqual(5, LevelGenerator.VersionFor(Difficulty.Easy));
+            Assert.AreEqual(5, LevelGenerator.VersionFor(Difficulty.Medium));
+            Assert.AreEqual(5, LevelGenerator.VersionFor(Difficulty.Hard));
+            Assert.AreEqual(7, LevelGenerator.VersionFor(Difficulty.ExtraHard));
+            Assert.AreEqual(7, LevelGenerator.VersionFor(Difficulty.UltraHard));
         }
     }
 }

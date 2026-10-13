@@ -40,6 +40,53 @@ namespace PaintMaze.Tests
             Assert.IsFalse(UiFlowPolicy.UsesExistingAccount(false));
         }
 
+        [TestCase(
+            UiPage.Home,
+            true,
+            SystemBackAction.DismissHomeOverlay)]
+        [TestCase(UiPage.Home, false, SystemBackAction.None)]
+        [TestCase(UiPage.Leaderboard, false, SystemBackAction.ReturnHome)]
+        [TestCase(UiPage.Game, true, SystemBackAction.None)]
+        [TestCase(UiPage.Complete, false, SystemBackAction.None)]
+        [TestCase(UiPage.SignIn, false, SystemBackAction.None)]
+        [TestCase(UiPage.Account, false, SystemBackAction.None)]
+        public void SystemBack_UsesPageSpecificAction(
+            UiPage page,
+            bool hasHomeOverlay,
+            SystemBackAction expected)
+        {
+            Assert.AreEqual(
+                expected,
+                UiFlowPolicy.BackAction(page, hasHomeOverlay));
+        }
+
+        [Test]
+        public void HomeSystemBack_DismissesActiveShop()
+        {
+            var homeObject = new GameObject("Home");
+            var shopObject = new GameObject("Shop");
+            shopObject.transform.SetParent(homeObject.transform, false);
+            try
+            {
+                HomeController home = homeObject.AddComponent<HomeController>();
+                BallShopPanel shop = shopObject.AddComponent<BallShopPanel>();
+                typeof(HomeController)
+                    .GetField(
+                        "_shop",
+                        BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(home, shop);
+
+                Assert.IsTrue(home.HasDismissibleOverlay);
+                Assert.IsTrue(home.DismissActiveOverlay());
+                Assert.IsFalse(shopObject.activeSelf);
+                Assert.IsFalse(home.HasDismissibleOverlay);
+            }
+            finally
+            {
+                Object.DestroyImmediate(homeObject);
+            }
+        }
+
         [Test]
         public void PodiumEntries_UsesFirstThreeRankedPlayers()
         {

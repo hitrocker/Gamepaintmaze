@@ -51,7 +51,7 @@ namespace PaintMaze.Menu
                 "• Public display name\n" +
                 "• Highest completed level per difficulty and timestamps\n\n" +
                 "ON THIS DEVICE\n" +
-                "Progress and preferences such as theme, sound, haptics, camera shake, " +
+                "Progress and preferences such as theme, sound, haptics, " +
                 "and paint splashes are stored locally.\n\n" +
                 "WHY\n" +
                 "Account data restores progress, supports sign-in, and displays the " +

@@ -52,15 +52,38 @@ namespace PaintMaze.Menu
 
             var title = UiKit.Text(_card, "Title", "SETTINGS", 46, Theme.Ink,
                 TextAnchor.MiddleLeft, FontStyle.Bold);
-            UiKit.Anchor(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(680f, 74f), new Vector2(60f, -92f));
+            UiKit.Anchor(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 0.5f),
+                new Vector2(680f, 74f), new Vector2(60f, -112f));
 
             var close = UiKit.Button(_card, "Close", Theme.CircleBg, SpriteFactory.Circle(), out var closeImg);
             UiKit.Anchor(closeImg.rectTransform, new Vector2(1f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(76f, 76f), new Vector2(-58f, -94f));
-            var x = UiKit.Text(closeImg.rectTransform, "X", "\u00D7", 44, Theme.OnCircle,
-                TextAnchor.MiddleCenter, FontStyle.Bold);
-            UiKit.Stretch(x.rectTransform);
+                new Vector2(72f, 72f), new Vector2(-100f, -112f));
+            var crossA = UiKit.Image(
+                closeImg.rectTransform,
+                "CrossA",
+                Theme.OnCircle,
+                SpriteFactory.RoundedRect(24, 7));
+            crossA.raycastTarget = false;
+            UiKit.Anchor(
+                crossA.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(30f, 6f),
+                Vector2.zero);
+            crossA.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            var crossB = UiKit.Image(
+                closeImg.rectTransform,
+                "CrossB",
+                Theme.OnCircle,
+                SpriteFactory.RoundedRect(24, 7));
+            crossB.raycastTarget = false;
+            UiKit.Anchor(
+                crossB.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(30f, 6f),
+                Vector2.zero);
+            crossB.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
             close.onClick.AddListener(Hide);
             AddPressFx(closeImg.rectTransform, 0.9f);
 
@@ -70,16 +93,14 @@ namespace PaintMaze.Menu
                 () => SaveService.SoundEnabled, value => SaveService.SoundEnabled = value);
             BuildSwitch(_card, "HAPTICS", "Vibration and impact feedback", 670f,
                 () => SaveService.HapticsEnabled, value => SaveService.HapticsEnabled = value);
-            BuildSwitch(_card, "CAMERA SHAKE", "Screen movement on wall impacts", 870f,
-                () => SaveService.CameraShakeEnabled, value => SaveService.CameraShakeEnabled = value);
-            BuildSwitch(_card, "PAINT SPLASHES", "Paint droplets while rolling", 1070f,
+            BuildSwitch(_card, "PAINT SPLASHES", "Paint droplets while rolling", 870f,
                 () => SaveService.PaintSplashesEnabled,
                 value => SaveService.PaintSplashesEnabled = value);
 
             var privacy = UiKit.Button(_card, "PrivacyPolicy", new Color(0f, 0f, 0f, 0f),
                 null, out var privacyImage);
             UiKit.Anchor(privacyImage.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(760f, 64f), new Vector2(0f, -1265f));
+                new Vector2(0.5f, 1f), new Vector2(760f, 64f), new Vector2(0f, -1065f));
             var privacyLabel = UiKit.Text(privacyImage.rectTransform, "Label",
                 "PRIVACY POLICY & DATA", 25, Theme.Gold,
                 TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -90,7 +111,7 @@ namespace PaintMaze.Menu
             var accountData = UiKit.Button(_card, "AccountAndData",
                 new Color(0f, 0f, 0f, 0f), null, out var accountDataImage);
             UiKit.Anchor(accountDataImage.rectTransform, new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(760f, 64f), new Vector2(0f, -1360f));
+                new Vector2(0.5f, 1f), new Vector2(760f, 64f), new Vector2(0f, -1160f));
             var accountDataLabel = UiKit.Text(accountDataImage.rectTransform, "Label",
                 "ACCOUNT & DATA", 25, Theme.InkSoft,
                 TextAnchor.MiddleCenter, FontStyle.Bold);

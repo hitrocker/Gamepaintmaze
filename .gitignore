@@ -69,3 +69,6 @@ __pycache__/
 
 *.pdb.meta
 *.mdb.meta
+
+ 
+credentials.env

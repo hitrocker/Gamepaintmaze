@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using PaintMaze.Domain;
@@ -21,6 +22,7 @@ namespace PaintMaze.Game
         // Public references (assigned in code here rather than via the Inspector).
         public Text difficultyLabel;
         public Text levelTitle;
+        public Text dailyTimerText;
         public Button backButton;
 
         public Button hintButton;
@@ -36,15 +38,20 @@ namespace PaintMaze.Game
         private Image _hintShadow;
         private Image _bulbBaseImage;
         private Image _hintCountImage;
+        private Image _hintPriceIcon;
         private Image _videoImage;
         private Text _videoGlyph;
+        private Text _hintMessage;
         private RectTransform _safeArea;
+        private int _dailyAttemptNumber = 1;
+        private Coroutine _hintMessageRoutine;
 
         public override void Build(RectTransform parent, Difficulty difficulty)
         {
             _safeArea = BuildSafeArea(parent);
             BuildHeader(_safeArea);
             BuildHintButton(_safeArea);
+            BuildHintMessage(_safeArea);
             SetLevel(difficulty, 1);
         }
 
@@ -68,10 +75,10 @@ namespace PaintMaze.Game
             // Floating circular back control: shadow first so it remains behind the
             // interactive image without intercepting input.
             _backShadow = UiKit.Image(parent, "BackButtonShadow",
-                new Color(0f, 0f, 0f, Theme.IsDark ? 0.24f : 0.17f), SpriteFactory.Circle());
+                new Color(0f, 0f, 0f, Theme.IsDark ? 0.24f : 0.18f), SpriteFactory.Circle());
             _backShadow.raycastTarget = false;
             UiKit.Anchor(_backShadow.rectTransform, new Vector2(0, 1), new Vector2(0.5f, 0.5f),
-                new Vector2(108, 108), new Vector2(95, -137));
+                new Vector2(108, 108), new Vector2(101, -138));
 
             backButton = UiKit.Button(parent, "BackButton", TranslucentCircleBg(),
                 SpriteFactory.Circle(), out var backImg);
@@ -94,6 +101,22 @@ namespace PaintMaze.Game
 
             levelTitle = UiKit.Text(parent, "LevelTitle", "Level 1", 74, Theme.Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
             UiKit.Anchor(levelTitle.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(900, 100), new Vector2(0, -148));
+
+            dailyTimerText = UiKit.Text(
+                parent,
+                "DailyTimer",
+                "0.000s",
+                30,
+                Theme.InkSoft,
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                dailyTimerText.rectTransform,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(400f, 46f),
+                new Vector2(0f, -270f));
+            dailyTimerText.gameObject.SetActive(false);
         }
 
         /// <summary>Bottom edge of the grouped header in physical screen pixels.</summary>
@@ -101,9 +124,13 @@ namespace PaintMaze.Game
         {
             get
             {
-                if (levelTitle == null) return Screen.height * 0.84f;
+                Text bottomText = dailyTimerText != null &&
+                                  dailyTimerText.gameObject.activeSelf
+                    ? dailyTimerText
+                    : levelTitle;
+                if (bottomText == null) return Screen.height * 0.84f;
                 var corners = new Vector3[4];
-                levelTitle.rectTransform.GetWorldCorners(corners);
+                bottomText.rectTransform.GetWorldCorners(corners);
                 return RectTransformUtility.WorldToScreenPoint(null, corners[0]).y;
             }
         }
@@ -114,7 +141,7 @@ namespace PaintMaze.Game
                 new Color(0f, 0f, 0f, Theme.IsDark ? 0.25f : 0.18f), SpriteFactory.Circle());
             _hintShadow.raycastTarget = false;
             UiKit.Anchor(_hintShadow.rectTransform, new Vector2(1, 0), new Vector2(0.5f, 0.5f),
-                new Vector2(148, 148), new Vector2(-110, 152));
+                new Vector2(145, 145), new Vector2(-104, 152));
 
             hintButton = UiKit.Button(parent, "HintButton", Theme.Gold, SpriteFactory.Circle(), out var btnImg);
             _hintImage = btnImg;
@@ -139,6 +166,20 @@ namespace PaintMaze.Game
             hintCountBadge = badgeImg.gameObject;
             hintCountText = UiKit.Text(badgeImg.rectTransform, "HintCount", "+", 28, Theme.Background, TextAnchor.MiddleCenter, FontStyle.Bold);
             UiKit.Stretch(hintCountText.rectTransform);
+            _hintPriceIcon = UiKit.Image(
+                badgeImg.rectTransform,
+                "HintPriceCoin",
+                Color.white,
+                SpriteFactory.Coins());
+            _hintPriceIcon.raycastTarget = false;
+            _hintPriceIcon.preserveAspect = true;
+            UiKit.Anchor(
+                _hintPriceIcon.rectTransform,
+                new Vector2(0f, 0.5f),
+                new Vector2(0f, 0.5f),
+                new Vector2(24f, 24f),
+                new Vector2(10f, 0f));
+            _hintPriceIcon.gameObject.SetActive(false);
 
             // Optional video-hint badge (dark circle) bottom-right.
             var videoImg = UiKit.Image(btnImg.rectTransform, "VideoHintBadge", Theme.CircleBg, SpriteFactory.Circle());
@@ -149,6 +190,26 @@ namespace PaintMaze.Game
             _videoGlyph = play;
             UiKit.Stretch(play.rectTransform);
             videoHintBadge = videoImg.gameObject;
+        }
+
+        private void BuildHintMessage(RectTransform parent)
+        {
+            _hintMessage = UiKit.Text(
+                parent,
+                "HintMessage",
+                string.Empty,
+                26,
+                Theme.Ink,
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            _hintMessage.horizontalOverflow = HorizontalWrapMode.Wrap;
+            UiKit.Anchor(
+                _hintMessage.rectTransform,
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(720f, 80f),
+                new Vector2(0f, 270f));
+            _hintMessage.gameObject.SetActive(false);
         }
 
         private void AddPressFx(Image img, float pressedScale, bool overshoot)
@@ -179,15 +240,90 @@ namespace PaintMaze.Game
         {
             if (difficultyLabel != null) difficultyLabel.text = (difficulty ?? "").ToUpper();
             if (levelTitle != null) levelTitle.text = LevelLabel.HudTitle(levelNumber);
+            if (dailyTimerText != null)
+                dailyTimerText.gameObject.SetActive(false);
             UpdateHints(hintsRemaining, hasVideoHint);
+        }
+
+        public void SetDailyPuzzle(
+            float elapsedSeconds = 0f,
+            int attemptNumber = 1)
+        {
+            _dailyAttemptNumber = Mathf.Clamp(
+                attemptNumber,
+                1,
+                DailyPuzzleService.MaxAttempts);
+            if (difficultyLabel != null) difficultyLabel.text = "DAILY";
+            if (levelTitle != null) levelTitle.text = "Daily Puzzle";
+            if (dailyTimerText != null)
+            {
+                dailyTimerText.gameObject.SetActive(true);
+                SetDailyElapsed(elapsedSeconds);
+            }
+        }
+
+        public void SetDailyElapsed(float elapsedSeconds)
+        {
+            if (dailyTimerText == null) return;
+            dailyTimerText.text =
+                $"{DailyPuzzleService.FormatElapsed(elapsedSeconds)}  ·  " +
+                $"TRY {_dailyAttemptNumber}/{DailyPuzzleService.MaxAttempts}";
         }
 
         public void UpdateHints(int hintsRemaining, bool hasVideoHint)
         {
-            // hintsRemaining < 0 means "unlimited" (this project's hint is free): show "+".
-            if (hintCountText != null) hintCountText.text = hintsRemaining < 0 ? "+" : hintsRemaining.ToString();
-            if (hintCountBadge != null) hintCountBadge.SetActive(hintsRemaining != 0);
+            int remaining = Mathf.Max(0, hintsRemaining);
+            bool paid = remaining == 0;
+            if (hintCountText != null)
+            {
+                hintCountText.text = paid
+                    ? CoinEconomy.HintCost.ToString()
+                    : remaining.ToString();
+                if (paid)
+                    UiKit.Stretch(
+                        hintCountText.rectTransform,
+                        left: 40f,
+                        right: 12f);
+                else
+                    UiKit.Stretch(hintCountText.rectTransform);
+                hintCountText.fontSize = paid ? 24 : 28;
+                hintCountText.alignment = paid
+                    ? TextAnchor.MiddleRight
+                    : TextAnchor.MiddleCenter;
+            }
+            if (_hintCountImage != null)
+            {
+                _hintCountImage.sprite = paid
+                    ? SpriteFactory.RoundedRect(64, 32)
+                    : SpriteFactory.Circle();
+                UiKit.Anchor(
+                    _hintCountImage.rectTransform,
+                    new Vector2(1f, 1f),
+                    paid ? new Vector2(1f, 0.5f) : new Vector2(0.5f, 0.5f),
+                    paid ? new Vector2(104f, 44f) : new Vector2(48f, 48f),
+                    paid ? new Vector2(18f, -2f) : new Vector2(-2f, -2f));
+            }
+            if (_hintPriceIcon != null)
+                _hintPriceIcon.gameObject.SetActive(paid);
+            if (hintCountBadge != null) hintCountBadge.SetActive(true);
             if (videoHintBadge != null) videoHintBadge.SetActive(hasVideoHint);
+        }
+
+        public void ShowHintMessage(string message)
+        {
+            if (_hintMessage == null || string.IsNullOrWhiteSpace(message)) return;
+            if (_hintMessageRoutine != null)
+                StopCoroutine(_hintMessageRoutine);
+            _hintMessageRoutine = StartCoroutine(ShowHintMessageRoutine(message));
+        }
+
+        private IEnumerator ShowHintMessageRoutine(string message)
+        {
+            _hintMessage.text = message;
+            _hintMessage.gameObject.SetActive(true);
+            yield return new WaitForSecondsRealtime(2.2f);
+            _hintMessage.gameObject.SetActive(false);
+            _hintMessageRoutine = null;
         }
 
         public void OnBackPressed() => RaiseBack();
@@ -197,9 +333,10 @@ namespace PaintMaze.Game
         public void ApplyTheme()
         {
             if (levelTitle != null) levelTitle.color = Theme.Ink;
+            if (dailyTimerText != null) dailyTimerText.color = Theme.InkSoft;
             if (_backImage != null) _backImage.color = TranslucentCircleBg();
             if (_backShadow != null)
-                _backShadow.color = new Color(0f, 0f, 0f, Theme.IsDark ? 0.24f : 0.17f);
+                _backShadow.color = new Color(0f, 0f, 0f, Theme.IsDark ? 0.24f : 0.18f);
             if (_backGlyph != null) _backGlyph.color = Theme.OnCircle;
             if (_difficultyPillImage != null) _difficultyPillImage.color = MutedPillBg();
             if (difficultyLabel != null) difficultyLabel.color = Theme.OnCircle;
@@ -208,7 +345,9 @@ namespace PaintMaze.Game
                 _hintShadow.color = new Color(0f, 0f, 0f, Theme.IsDark ? 0.25f : 0.18f);
             if (_bulbBaseImage != null) _bulbBaseImage.color = Theme.Hex("#3A3320");
             if (_hintCountImage != null) _hintCountImage.color = Color.white;
+            if (_hintPriceIcon != null) _hintPriceIcon.color = Color.white;
             if (hintCountText != null) hintCountText.color = Theme.Background;
+            if (_hintMessage != null) _hintMessage.color = Theme.Ink;
             if (_videoImage != null) _videoImage.color = Theme.CircleBg;
             if (_videoGlyph != null) _videoGlyph.color = Color.white;
         }
@@ -216,7 +355,7 @@ namespace PaintMaze.Game
         // Bridges the GameController-driven Hud API onto the spec widgets.
         public override void SetLevel(Difficulty difficulty, int index)
         {
-            SetupLevel(DifficultyConfig.For(difficulty).DisplayName, index, -1, false);
+            SetupLevel(DifficultyConfig.For(difficulty).DisplayName, index, 3, false);
         }
     }
 }

@@ -11,10 +11,10 @@ using DebugSymbolLevel = Unity.Android.Types.DebugSymbolLevel;
 namespace PaintMaze.EditorTools
 {
     /// <summary>
-    /// Headless Android build helper. Configures IL2CPP + ARM64 and builds an APK
-    /// to build/PaintMaze.apk. Run via:
+    /// Headless player build helper. Android APK/AAB and iOS Xcode export.
+    /// Run via:
     ///   Unity -batchmode -quit -projectPath . -executeMethod PaintMaze.EditorTools.BuildTool.BuildAndroid
-    /// (Requires the Android Build Support module installed in the Editor.)
+    ///   Unity -batchmode -quit -projectPath . -buildTarget iOS -executeMethod PaintMaze.EditorTools.BuildTool.BuildIos
     /// </summary>
     public static class BuildTool
     {
@@ -24,12 +24,55 @@ namespace PaintMaze.EditorTools
             BuildAndroidPlayer("build/PaintMaze.apk", BuildOptions.None);
         }
 
+        [MenuItem("Paint Maze/Build iOS")]
+        public static void BuildIos()
+        {
+            BuildIosPlayer("build/ios", BuildOptions.None);
+        }
+
         [MenuItem("Paint Maze/Build Android Development APK")]
         public static void BuildAndroidDevelopment()
         {
-            BuildAndroidPlayer(
-                "build/PaintMaze-dev.apk",
-                BuildOptions.Development | BuildOptions.AllowDebugging);
+            bool previousCustomKeystore =
+                PlayerSettings.Android.useCustomKeystore;
+            try
+            {
+                PlayerSettings.Android.useCustomKeystore = false;
+                BuildAndroidPlayer(
+                    "build/PaintMaze-dev.apk",
+                    BuildOptions.Development | BuildOptions.AllowDebugging);
+            }
+            finally
+            {
+                PlayerSettings.Android.useCustomKeystore =
+                    previousCustomKeystore;
+                AssetDatabase.SaveAssets();
+            }
+        }
+
+        [MenuItem("Paint Maze/Build Android Screenshot Development APK")]
+        public static void BuildAndroidScreenshotDevelopment()
+        {
+            string previousProductName = PlayerSettings.productName;
+            string previousCompanyName = PlayerSettings.companyName;
+            bool previousCustomKeystore =
+                PlayerSettings.Android.useCustomKeystore;
+            try
+            {
+                PlayerSettings.Android.useCustomKeystore = false;
+                BuildAndroidPlayer(
+                    "build/PaintMazeScreenshot-dev.apk",
+                    BuildOptions.Development | BuildOptions.AllowDebugging,
+                    "Paint Maze Screenshot");
+            }
+            finally
+            {
+                PlayerSettings.productName = previousProductName;
+                PlayerSettings.companyName = previousCompanyName;
+                PlayerSettings.Android.useCustomKeystore =
+                    previousCustomKeystore;
+                AssetDatabase.SaveAssets();
+            }
         }
 
         [MenuItem("Paint Maze/Build Signed Device APK")]
@@ -90,7 +133,8 @@ namespace PaintMaze.EditorTools
 
             EnsureAlwaysIncluded("Standard", "Unlit/Color", "Unlit/Texture",
                 "Unlit/Transparent", "Sprites/Default",
-                "Legacy Shaders/Particles/Additive", "Mobile/Particles/Additive");
+                "Legacy Shaders/Particles/Additive", "Mobile/Particles/Additive",
+                "Custom/BallSkin", "Custom/BallSkinSports");
             AndroidBranding.ApplyAppIcon();
 
             bool previousBundleSetting = EditorUserBuildSettings.buildAppBundle;
@@ -119,7 +163,8 @@ namespace PaintMaze.EditorTools
                 PlayerSettings.allowedAutorotateToLandscapeRight = false;
                 PlayerSettings.SetScriptingBackend(
                     NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
-                PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+                PlayerSettings.Android.targetArchitectures =
+                    AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
                 UserBuildSettings.DebugSymbols.level =
                     DebugSymbolLevel.SymbolTable;
                 UserBuildSettings.DebugSymbols.format =
@@ -166,7 +211,10 @@ namespace PaintMaze.EditorTools
                 EditorApplication.Exit(1);
         }
 
-        private static void BuildAndroidPlayer(string outputPath, BuildOptions buildOptions)
+        private static void BuildAndroidPlayer(
+            string outputPath,
+            BuildOptions buildOptions,
+            string productName = "Paint Maze")
         {
             // The board builds its materials at runtime via Shader.Find(...).
             // Built players strip shaders no asset references, so force-include them.
@@ -174,7 +222,8 @@ namespace PaintMaze.EditorTools
             // fake ball shadow; the additive particle shader drives the ball sparks.)
             EnsureAlwaysIncluded("Standard", "Unlit/Color", "Unlit/Texture",
                 "Unlit/Transparent", "Sprites/Default",
-                "Legacy Shaders/Particles/Additive", "Mobile/Particles/Additive");
+                "Legacy Shaders/Particles/Additive", "Mobile/Particles/Additive",
+                "Custom/BallSkin", "Custom/BallSkinSports");
             AndroidBranding.ApplyAppIcon();
 
             // Portrait-only puzzle game.
@@ -185,9 +234,10 @@ namespace PaintMaze.EditorTools
             PlayerSettings.allowedAutorotateToLandscapeRight = false;
 
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.targetArchitectures =
+                AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.hitrocker.paintmaze");
-            PlayerSettings.productName = "Paint Maze";
+            PlayerSettings.productName = productName;
             PlayerSettings.companyName = "PaintMaze";
 
             var options = new BuildPlayerOptions
@@ -202,7 +252,58 @@ namespace PaintMaze.EditorTools
             Debug.Log("[PaintMaze] Android build result: " + report.summary.result +
                       " size=" + report.summary.totalSize + " bytes");
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
-                EditorApplication.Exit(1);
+                throw new BuildFailedException(
+                    "Android player build failed: " + report.summary.result);
+        }
+
+        private static void BuildIosPlayer(string outputPath, BuildOptions buildOptions)
+        {
+            EnsureAlwaysIncluded("Standard", "Unlit/Color", "Unlit/Texture",
+                "Unlit/Transparent", "Sprites/Default",
+                "Legacy Shaders/Particles/Additive", "Mobile/Particles/Additive",
+                "Custom/BallSkin", "Custom/BallSkinSports");
+            ApplyIosAppIcon();
+
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+
+            PlayerSettings.SetScriptingBackend(
+                NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetApplicationIdentifier(
+                NamedBuildTarget.iOS, "com.hitrocker.paintmaze");
+            PlayerSettings.productName = "Paint Maze";
+            PlayerSettings.companyName = "PaintMaze";
+            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
+            PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK;
+
+            Directory.CreateDirectory(outputPath);
+
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { SetupTool.ScenePath },
+                locationPathName = outputPath,
+                target = BuildTarget.iOS,
+                options = buildOptions
+            };
+
+            var report = BuildPipeline.BuildPlayer(options);
+            Debug.Log("[PaintMaze] iOS build result: " + report.summary.result +
+                      " size=" + report.summary.totalSize + " bytes");
+            if (report.summary.result != BuildResult.Succeeded)
+                throw new BuildFailedException(
+                    "iOS player build failed: " + report.summary.result);
+        }
+
+        private static void ApplyIosAppIcon()
+        {
+            Texture2D icon = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Branding/PaintMazeIcon.png");
+            if (icon == null) return;
+            PlayerSettings.SetIcons(
+                NamedBuildTarget.iOS, new[] { icon }, IconKind.Application);
         }
 
         private static string RequiredEnvironment(string name)

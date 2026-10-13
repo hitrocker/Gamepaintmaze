@@ -77,10 +77,11 @@ namespace PaintMaze.Menu
             BuildTabs();
             BuildIdentityStrip();
 
-            _status = UiKit.Text(_card, "Status", "LOADING...", 23, Theme.InkSoft,
+            _status = UiKit.Text(_card, "Status", string.Empty, 23, Theme.InkSoft,
                 TextAnchor.MiddleCenter);
             UiKit.Anchor(_status.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(920f, 46f), new Vector2(0f, -455f));
+            _status.gameObject.SetActive(false);
 
             BuildPodiumHost();
             BuildList();
@@ -244,8 +245,7 @@ namespace PaintMaze.Menu
         private void Load()
         {
             int request = ++_requestVersion;
-            _status.text = "LOADING...";
-            _status.color = Theme.InkSoft;
+            _status.gameObject.SetActive(false);
             UpdatePinnedRow(null, null);
             _service.LoadTop(_selected, result =>
             {
@@ -266,7 +266,8 @@ namespace PaintMaze.Menu
                 ClearRows();
                 ClearPodium();
                 UpdatePinnedRow(null, null);
-                _status.text = result.Error.ToUpperInvariant();
+                _status.gameObject.SetActive(true);
+                _status.text = "RANKINGS UNAVAILABLE";
                 _status.color = Theme.Hex("#E66A5E");
                 return;
             }
@@ -276,10 +277,13 @@ namespace PaintMaze.Menu
             UpdatePinnedRow(result.OwnEntry, result.OwnRank);
             Canvas.ForceUpdateCanvases();
             RefreshPinnedVisibility();
-            _status.text = result.IsFromCache
-                ? "OFFLINE — SHOWING SAVED RANKINGS"
-                : result.Entries.Count == 0 ? "NO RANKINGS YET" : "TOP PLAYERS";
-            _status.color = result.IsFromCache ? Theme.Gold : Theme.InkSoft;
+            bool isEmpty = result.Entries.Count == 0;
+            _status.gameObject.SetActive(isEmpty);
+            if (isEmpty)
+            {
+                _status.text = "NO RANKINGS YET";
+                _status.color = Theme.InkSoft;
+            }
         }
 
         public static string FormatPinnedRank(int? rank) =>

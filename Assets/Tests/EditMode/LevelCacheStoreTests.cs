@@ -100,7 +100,7 @@ namespace PaintMaze.Tests
             Level easy = new SectionedLevelProvider().GetLevel(Difficulty.Easy, 1);
             store.SaveLevel(Difficulty.Easy, 501, easy);
             Assert.IsTrue(store.TryLoadLevel(Difficulty.Easy, 501, out _),
-                "unchanged v3 lower-mode cache should remain valid");
+                "a cache written with the current lower-mode header should remain valid");
 
             Level source = new Level(
                 easy.Grid, easy.Spawn, Difficulty.ExtraHard, 1001);

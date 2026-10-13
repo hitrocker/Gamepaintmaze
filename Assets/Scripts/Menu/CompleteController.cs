@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using PaintMaze.Domain;
+using PaintMaze.Game;
 using PaintMaze.Services;
 
 namespace PaintMaze.Menu
@@ -17,10 +18,14 @@ namespace PaintMaze.Menu
     public sealed class CompleteController : MonoBehaviour
     {
         public event Action Next;
-        public event Action Home; // retained for compatibility; no longer raised
+        public event Action Home;
+        public event Action Replay;
 
         private static readonly string[] Praise =
             { "FANTASTIC!", "AWESOME!", "GREAT!", "PERFECT!", "BRILLIANT!", "NICE!" };
+        private static readonly string[] DailyPraise =
+            { "CRUSHED!", "NAILED!", "CLUTCH!", "FLAWLESS!", "EPIC!", "BOOM!" };
+        private static int _lastDailyPraiseIndex = -1;
 
         private const int SparkPoolSize = 36;
         private static readonly Color[] Sparks =
@@ -36,6 +41,12 @@ namespace PaintMaze.Menu
         private Image _dim;
         private Text _word;
         private Text _detail;
+        private Text _coinsLabel;
+        private GameObject _dailyActions;
+        private Button _dailyReplayButton;
+        private Image _dailyReplayImage;
+        private Text _dailyReplayLabel;
+        private DailyLeaderboardPanel _dailyLeaderboardPanel;
         private Coroutine _running;
         private Color _dimColor;
         private readonly Stack<Image> _availableSparks = new();
@@ -69,28 +80,122 @@ namespace PaintMaze.Menu
                 new Vector2(0.5f, 0.5f), new Vector2(760f, 58f), new Vector2(0f, -108f));
             _detail.raycastTarget = false;
 
+            _coinsLabel = UiKit.Text(_root, "CoinsReward", string.Empty, 34,
+                Theme.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UiKit.Anchor(_coinsLabel.rectTransform, new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), new Vector2(480f, 48f), new Vector2(0f, -168f));
+            _coinsLabel.raycastTarget = false;
+            _coinsLabel.gameObject.SetActive(false);
+
+            BuildDailyActions();
             PrewarmSparkPool();
+            BuildDailyLeaderboardPanel();
         }
 
-        public void Show(Difficulty difficulty, int levelIndex)
+        public void Show(Difficulty difficulty, int levelIndex, int coinsGranted = 0)
         {
             StopAllCoroutines();
             ResetSparkPool();
+            ShowCelebrationView();
+            _dailyLeaderboardPanel.Hide();
             gameObject.SetActive(true);
             _dimColor = CompletionDim();
             _word.color = Color.white;
             _detail.color = Theme.Gold;
+            _word.fontSize = 124;
             _word.text = Praise[UnityEngine.Random.Range(0, Praise.Length)];
             _detail.text = $"{Theme.Name(difficulty).ToUpperInvariant()}  ·  LEVEL {levelIndex} COMPLETE";
-            _running = StartCoroutine(Celebrate());
+            _detail.fontSize = 29;
+            UiKit.Anchor(
+                _detail.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(760f, 58f),
+                new Vector2(0f, -108f));
+            SetCoinsReward(coinsGranted, -168f);
+            _dailyActions.SetActive(false);
+            _running = StartCoroutine(Celebrate(true));
         }
 
-        private IEnumerator Celebrate()
+        public void ShowDaily(DailyPuzzleCompletion completion, int coinsGranted = 0)
+        {
+            if (completion == null) return;
+            StopAllCoroutines();
+            ResetSparkPool();
+            ShowCelebrationView();
+            _dailyLeaderboardPanel.Hide();
+            gameObject.SetActive(true);
+            _dimColor = CompletionDim();
+            _word.color = Color.white;
+            _detail.color = Theme.Gold;
+            _word.fontSize = 94;
+            _word.text = NextDailyPraise();
+            _detail.fontSize = 26;
+            _detail.text = BuildDailyDetail(completion);
+            UiKit.Anchor(
+                _detail.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(880f, 150f),
+                new Vector2(0f, -142f));
+            SetCoinsReward(coinsGranted, -230f);
+            _dailyActions.SetActive(true);
+            bool canReplay = !completion.Status.IsLocked;
+            _dailyReplayButton.interactable = canReplay;
+            _dailyReplayImage.color = canReplay
+                ? Theme.Gold
+                : new Color(
+                    Theme.Gold.r,
+                    Theme.Gold.g,
+                    Theme.Gold.b,
+                    0.35f);
+            _dailyReplayLabel.text = canReplay ? "REPLAY" : "LOCKED";
+            _dailyLeaderboardPanel.Prepare(completion.Status.IsLocked);
+            _running = StartCoroutine(Celebrate(false));
+        }
+
+        private void SetCoinsReward(int coinsGranted, float anchoredY)
+        {
+            if (_coinsLabel == null) return;
+            if (coinsGranted <= 0)
+            {
+                _coinsLabel.gameObject.SetActive(false);
+                return;
+            }
+
+            _coinsLabel.gameObject.SetActive(true);
+            _coinsLabel.text = $"+{coinsGranted} COINS";
+            _coinsLabel.color = Theme.Gold;
+            UiKit.Anchor(
+                _coinsLabel.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(480f, 48f),
+                new Vector2(0f, anchoredY));
+        }
+
+        public void SetDailyLeaderboardResult(DailyLeaderboardResult result) =>
+            _dailyLeaderboardPanel?.SetResult(result);
+
+        private static string NextDailyPraise()
+        {
+            int index = _lastDailyPraiseIndex < 0
+                ? UnityEngine.Random.Range(0, DailyPraise.Length)
+                : UnityEngine.Random.Range(0, DailyPraise.Length - 1);
+            if (_lastDailyPraiseIndex >= 0 && index >= _lastDailyPraiseIndex)
+                index++;
+            _lastDailyPraiseIndex = index;
+            return DailyPraise[index];
+        }
+
+        private IEnumerator Celebrate(bool autoAdvance)
         {
             var wordRt = _word.rectTransform;
             wordRt.localScale = Vector3.one * 0.3f;
             SetAlpha(_word, 0f);
             SetAlpha(_detail, 0f);
+            if (_coinsLabel != null && _coinsLabel.gameObject.activeSelf)
+                SetAlpha(_coinsLabel, 0f);
             _dim.color = new Color(_dimColor.r, _dimColor.g, _dimColor.b, 0f);
 
             // Spark ring waves around the word.
@@ -107,6 +212,8 @@ namespace PaintMaze.Menu
                 wordRt.localScale = Vector3.one * EaseOutBack(x);
                 SetAlpha(_word, Mathf.Clamp01(x * 1.6f));
                 SetAlpha(_detail, Mathf.Clamp01((x - 0.25f) * 1.5f));
+                if (_coinsLabel != null && _coinsLabel.gameObject.activeSelf)
+                    SetAlpha(_coinsLabel, Mathf.Clamp01((x - 0.35f) * 1.6f));
                 _dim.color = new Color(
                     _dimColor.r, _dimColor.g, _dimColor.b, _dimColor.a * x);
                 yield return null;
@@ -122,6 +229,14 @@ namespace PaintMaze.Menu
                 hold += Time.unscaledDeltaTime;
                 wordRt.localScale = Vector3.one * (1f + 0.018f * Mathf.Sin(hold * 8f));
                 yield return null;
+            }
+
+            if (!autoAdvance)
+            {
+                wordRt.localScale = Vector3.one;
+                _running = null;
+                ShowDailyLeaderboardPanel();
+                yield break;
             }
 
             // Fade everything out, then advance.
@@ -140,6 +255,124 @@ namespace PaintMaze.Menu
 
             _running = null;
             Next?.Invoke();
+        }
+
+        private void BuildDailyLeaderboardPanel()
+        {
+            var panelObject = new GameObject(
+                "DailyLeaderboard",
+                typeof(RectTransform));
+            panelObject.transform.SetParent(_root, false);
+            var panel = (RectTransform)panelObject.transform;
+            UiKit.Stretch(panel);
+            _dailyLeaderboardPanel =
+                panelObject.AddComponent<DailyLeaderboardPanel>();
+            _dailyLeaderboardPanel.Build(panel);
+            _dailyLeaderboardPanel.Home += () => Home?.Invoke();
+            _dailyLeaderboardPanel.Replay += () => Replay?.Invoke();
+        }
+
+        private void ShowCelebrationView()
+        {
+            if (_particleLayer != null)
+                _particleLayer.gameObject.SetActive(true);
+            if (_word != null) _word.gameObject.SetActive(true);
+            if (_detail != null) _detail.gameObject.SetActive(true);
+        }
+
+        private void ShowDailyLeaderboardPanel()
+        {
+            if (_particleLayer != null)
+                _particleLayer.gameObject.SetActive(false);
+            _dailyLeaderboardPanel?.Show();
+        }
+
+        private void BuildDailyActions()
+        {
+            _dailyActions = new GameObject("DailyActions", typeof(RectTransform));
+            _dailyActions.transform.SetParent(_root, false);
+            var actions = (RectTransform)_dailyActions.transform;
+            UiKit.Anchor(
+                actions,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(780f, 110f),
+                new Vector2(0f, -300f));
+
+            var home = UiKit.Button(
+                actions,
+                "DailyHome",
+                Theme.CircleBg,
+                SpriteFactory.RoundedRect(72, 22),
+                out var homeImage);
+            UiKit.Anchor(
+                homeImage.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(350f, 96f),
+                new Vector2(-190f, 0f));
+            var homeLabel = UiKit.Text(
+                homeImage.rectTransform,
+                "Label",
+                "HOME",
+                27,
+                Theme.OnCircle,
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            UiKit.Stretch(homeLabel.rectTransform);
+            home.onClick.AddListener(() => Home?.Invoke());
+            AddPressFx(homeImage.rectTransform);
+
+            _dailyReplayButton = UiKit.Button(
+                actions,
+                "DailyReplay",
+                Theme.Gold,
+                SpriteFactory.RoundedRect(72, 22),
+                out _dailyReplayImage);
+            UiKit.Anchor(
+                _dailyReplayImage.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(350f, 96f),
+                new Vector2(190f, 0f));
+            _dailyReplayLabel = UiKit.Text(
+                _dailyReplayImage.rectTransform,
+                "Label",
+                "REPLAY",
+                27,
+                Theme.Hex("#3A3320"),
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            UiKit.Stretch(_dailyReplayLabel.rectTransform);
+            _dailyReplayButton.onClick.AddListener(() => Replay?.Invoke());
+            AddPressFx(_dailyReplayImage.rectTransform);
+            _dailyActions.SetActive(false);
+        }
+
+        private static void AddPressFx(RectTransform target)
+        {
+            var fx = target.gameObject.AddComponent<UiPressFx>();
+            fx.target = target;
+            fx.pressedScale = 0.96f;
+        }
+
+        private static string BuildDailyDetail(
+            DailyPuzzleCompletion completion)
+        {
+            string best = completion.BestMoveCount > 0
+                ? $"{completion.BestMoveCount} MOVES / " +
+                  DailyPuzzleService.FormatElapsed(
+                      completion.BestTimeSeconds)
+                : "—";
+            string marker = completion.IsNewBest ? "  ·  NEW BEST" : string.Empty;
+            return
+                $"TIME {DailyPuzzleService.FormatElapsed(completion.ElapsedSeconds)}  ·  " +
+                $"{completion.MoveCount} MOVES{marker}\n" +
+                $"BEST {best}\n" +
+                $"TRY {completion.Status.AttemptsUsed}/" +
+                $"{DailyPuzzleService.MaxAttempts}  ·  " +
+                $"STREAK {completion.Status.CurrentStreak}  ·  " +
+                $"BEST STREAK {completion.Status.BestStreak}";
         }
 
         private IEnumerator SparkWave(int count, float radius, float delay)

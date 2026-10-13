@@ -14,13 +14,20 @@ namespace PaintMaze.Services
         private AuthService _auth;
         private LeaderboardService _leaderboard;
         private ProgressSyncService _progressSync;
+        private DailyLeaderboardService _dailyLeaderboard;
+        private EconomySyncService _economy;
+        private bool _progressWasSuspended;
 
         public void Init(AuthService auth, LeaderboardService leaderboard,
-            ProgressSyncService progressSync)
+            ProgressSyncService progressSync,
+            DailyLeaderboardService dailyLeaderboard = null,
+            EconomySyncService economy = null)
         {
             _auth = auth;
             _leaderboard = leaderboard;
             _progressSync = progressSync;
+            _dailyLeaderboard = dailyLeaderboard;
+            _economy = economy;
         }
 
         public void DeleteCurrentAccount(string password, string googleToken,
@@ -40,6 +47,7 @@ namespace PaintMaze.Services
 
             string uid = _auth.CurrentUser.UserId;
             IsDeleting = true;
+            _progressWasSuspended = _progressSync.IsSuspended;
             _progressSync.Suspend();
             _leaderboard.SuspendSync();
 
@@ -77,22 +85,64 @@ namespace PaintMaze.Services
                     return;
                 }
 
-                _auth.DeleteCurrentUser((authDeleted, authError) =>
+                void DeleteAuth()
                 {
-                    if (!authDeleted)
+                    _auth.DeleteCurrentUser((authDeleted, authError) =>
                     {
-                        FinishFailure(authError, callback);
+                        if (!authDeleted)
+                        {
+                            FinishFailure(authError, callback);
+                            return;
+                        }
+
+                        SaveService.ClearProgressForUser(uid);
+                        SaveService.SetProgressOwner(null);
+                        IsDeleting = false;
+                        _leaderboard.ResumeSync();
+                        if (!_progressWasSuspended) _progressSync.Resume();
+                        _auth.EnsureSessionSilently();
+                        callback?.Invoke(
+                            true,
+                            "Account and cloud progress deleted.");
+                    });
+                }
+
+                void AfterDaily()
+                {
+                    if (_economy == null)
+                    {
+                        DeleteAuth();
                         return;
                     }
 
-                    SaveService.ClearProgressForUser(uid);
-                    SaveService.SetProgressOwner(null);
-                    IsDeleting = false;
-                    _leaderboard.ResumeSync();
-                    _progressSync.Resume();
-                    _auth.EnsureSessionSilently();
-                    callback?.Invoke(true, "Account and cloud progress deleted.");
-                });
+                    _economy.DeleteOwn(uid, (economyDeleted, economyError) =>
+                    {
+                        if (!economyDeleted)
+                        {
+                            FinishFailure(economyError, callback);
+                            return;
+                        }
+                        DeleteAuth();
+                    });
+                }
+
+                if (_dailyLeaderboard == null)
+                {
+                    AfterDaily();
+                    return;
+                }
+
+                _dailyLeaderboard.DeleteOwnEntries(
+                    uid,
+                    (dailyDeleted, dailyError) =>
+                    {
+                        if (!dailyDeleted)
+                        {
+                            FinishFailure(dailyError, callback);
+                            return;
+                        }
+                        AfterDaily();
+                    });
             });
         }
 
@@ -100,7 +150,7 @@ namespace PaintMaze.Services
         {
             IsDeleting = false;
             _leaderboard.ResumeSync();
-            _progressSync.Resume();
+            if (!_progressWasSuspended) _progressSync.Resume();
             callback?.Invoke(false, string.IsNullOrEmpty(error)
                 ? "Could not delete the account."
                 : error);

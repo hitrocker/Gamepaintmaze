@@ -27,7 +27,11 @@ namespace PaintMaze.Services
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
         {
-            if (!Application.productName.Contains("Screenshot")) return;
+            string[] arguments = Environment.GetCommandLineArgs();
+            if (!ScreenshotPlayerMode.IsActive ||
+                !ScreenshotPlayerMode.HasCommandLineArgument(
+                    arguments, "-captureOutput"))
+                return;
             Debug.Log("[StoreCapture] Starting screenshot automation.");
             var go = new GameObject("StoreScreenshotCapture");
             DontDestroyOnLoad(go);
@@ -38,10 +42,11 @@ namespace PaintMaze.Services
         private IEnumerator Run()
         {
             Debug.Log("[StoreCapture] Capture coroutine started.");
+            Application.runInBackground = true;
             _output = Argument("-captureOutput");
-            _width = IntegerArgument("-captureWidth", 540);
-            _height = IntegerArgument("-captureHeight", 960);
-            _scale = IntegerArgument("-captureScale", 2);
+            _width = IntegerArgument("-captureWidth", 1440);
+            _height = IntegerArgument("-captureHeight", 2560);
+            _scale = IntegerArgument("-captureScale", 1);
             Directory.CreateDirectory(_output);
 
             Screen.SetResolution(_width, _height, FullScreenMode.Windowed);

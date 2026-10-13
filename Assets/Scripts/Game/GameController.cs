@@ -19,6 +19,7 @@ namespace PaintMaze.Game
         public event Action Completed;
         public event Action StateCommitted;
         public event Action Restarted;
+        public event Action MoveStarted;
 
         private readonly MovementSystem _movement = new MovementSystem();
         private readonly Solver _solver = new Solver();
@@ -30,6 +31,7 @@ namespace PaintMaze.Game
 
         private Level _level;
         private GameState _state;
+        private int? _paintIndexOverride;
         private bool _animating;
         private bool _hasBufferedSwipe;
         private SwipeDirection _bufferedSwipe;
@@ -41,6 +43,7 @@ namespace PaintMaze.Game
 
         public Level Level => _level;
         public bool IsComplete => _state?.IsComplete ?? false;
+        public int MoveCount => _state?.MoveCount ?? 0;
         public bool HintGuidanceActive => _hintGuidance.Active;
         public float LongDistanceThreshold
         {
@@ -53,6 +56,11 @@ namespace PaintMaze.Game
             set => ballSpeedIncWhenLongDist = Mathf.Max(0f, value);
         }
 
+        public void SetPaintIndexOverride(int? paintIndex)
+        {
+            _paintIndexOverride = paintIndex;
+        }
+
         public void Setup(BoardView3D board, SwipeInput swipe, Hud hud)
         {
             _board = board;
@@ -60,7 +68,6 @@ namespace PaintMaze.Game
             _hud = hud;
             _swipe.Swiped += HandleSwipe;
             _swipe.SwipedWhileDisabled += BufferSwipe;
-            _hud.Hint += ShowHint;
             _hud.Restart += Restart;
         }
 
@@ -69,7 +76,7 @@ namespace PaintMaze.Game
             CancelTutorialHint();
             EndHintGuidance();
             _level = level;
-            _paint = Theme.Paint(level.Index);
+            _paint = Theme.Paint(_paintIndexOverride ?? level.Index);
             _state = restoredState != null &&
                      ReferenceEquals(restoredState.Level, level)
                 ? restoredState
@@ -109,6 +116,7 @@ namespace PaintMaze.Game
             var (stop, path) = _movement.Slide(_level, _state.BallPos, dir);
             if (stop == _state.BallPos || path.Count == 0) return;
             _board.ClearRouteHint();
+            MoveStarted?.Invoke();
             if (!_firstSwipeLogged)
             {
                 _firstSwipeLogged = true;
@@ -203,8 +211,6 @@ namespace PaintMaze.Game
                     if (AudioService.Instance != null)
                         AudioService.Instance.PlayWall(impact);
                     _board.BurstSparks(impact.SparkCount);
-                    if (CameraShake.Instance != null)
-                        CameraShake.Instance.Shake(impact.Shake);
                     impacted = true;
                 }
 
@@ -310,12 +316,17 @@ namespace PaintMaze.Game
             Load(_level);
         }
 
-        private void ShowHint()
+        public bool CanShowHint() =>
+            TryBuildHintRoute(out _);
+
+        public bool TryShowHint()
         {
-            if (_animating || _state == null || _state.IsComplete) return;
+            if (!TryBuildHintRoute(out List<HintRouteSegment> route))
+                return false;
 
             _hintGuidance.Begin();
-            ShowNextProgressHint();
+            _board.ShowRouteHint(route);
+            return true;
         }
 
         private void ShowNextProgressHint()
@@ -324,23 +335,29 @@ namespace PaintMaze.Game
                 _state == null || _state.IsComplete)
                 return;
 
-            SwipeDirection? direction = _solver.SuggestProgressMove(
-                _level, _state.BallPos, _state.Painted);
-            if (!direction.HasValue)
-            {
-                EndHintGuidance();
-                return;
-            }
-
-            List<HintRouteSegment> route = HintRouteBuilder.Build(
-                _level, _state.BallPos, new[] { direction.Value });
-            if (route.Count == 0)
+            if (!TryBuildHintRoute(out List<HintRouteSegment> route))
             {
                 EndHintGuidance();
                 return;
             }
 
             _board.ShowRouteHint(route);
+        }
+
+        private bool TryBuildHintRoute(out List<HintRouteSegment> route)
+        {
+            route = null;
+            if (_animating || _state == null || _state.IsComplete)
+                return false;
+
+            SwipeDirection? direction = _solver.SuggestProgressMove(
+                _level, _state.BallPos, _state.Painted);
+            if (!direction.HasValue)
+                return false;
+
+            route = HintRouteBuilder.Build(
+                _level, _state.BallPos, new[] { direction.Value });
+            return route.Count > 0;
         }
 
         private void EndHintGuidance()
@@ -354,7 +371,7 @@ namespace PaintMaze.Game
             yield return new WaitForSecondsRealtime(0.5f);
             _tutorialHintRoutine = null;
             if (_animating || _state == null || _state.IsComplete) yield break;
-            ShowHint();
+            TryShowHint();
         }
 
         private void CancelTutorialHint()

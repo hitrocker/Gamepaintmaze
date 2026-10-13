@@ -33,6 +33,11 @@ namespace PaintMaze.Game
         private static readonly Vector3 SilhouetteShadowOffset = new(0.10f, -0.055f, -0.10f);
         private const float BallScale = 0.62f;
         private const int ShadeBandCount = 5;
+        // Ring radii are in ball-local units, where the sphere radius is 0.5.
+        private const float RingInnerRadius = 0.62f;
+        private const float RingOuterRadius = 0.95f;
+        private const int RingSegments = 64;
+        private static readonly Vector3 RingTilt = new(20f, 0f, 9f);
 
         public float SurfaceHeight => BoardHeight;
         public float TopHeight => BoardHeight;
@@ -51,6 +56,9 @@ namespace PaintMaze.Game
         private Material _matPaintSide, _matBall, _matBoardRim, _matBoardShadow;
         private GameObject _ball;
         private Transform _ballSpin;
+        private GameObject _ballRings;
+        private Mesh _ringMesh;
+        private MeshRenderer _ballRenderer;
         private Vector3 _ballBaseScale = Vector3.one;
         private int _rows, _cols;
         private int _minRow, _maxRow, _minCol, _maxCol;
@@ -157,7 +165,7 @@ namespace PaintMaze.Game
             _matPaintTops = BuildShadeMaterials(paint);
             _matHole = FlatMat(Theme.Hole);
             _matHoleInner = FlatMat(Theme.HoleInner);
-            _matBall = MakeMat(Theme.Ball, 0.62f);
+            _matBall = SportsBallArt.MaterialFor(SaveService.EquippedSkinId);
             _matBoardRim = FlatMat(Theme.BoardRim);
             _matBoardShadow = FlatMat(Theme.BoardShadow);
 
@@ -189,31 +197,25 @@ namespace PaintMaze.Game
             if (_activeCapPops.Capacity < _caps.Count)
                 _activeCapPops.Capacity = _caps.Count;
 
-            _ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            _ball = new GameObject("Ball");
             _transientRoots.Add(_ball);
-            _ball.name = "Ball";
             _ball.transform.SetParent(transform, false);
             _ballBaseScale = Vector3.one * (Size * BallScale);
             _ball.transform.localScale = _ballBaseScale;
-            DestroyImmediate(_ball.GetComponent<Collider>());
-            var br = _ball.GetComponent<MeshRenderer>();
-            br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            br.sharedMaterial = _matBall;
 
-            // Spin/scale are applied to an inner pivot so squash and roll stay
-            // independent. A bright top-left glint reinforces the glossy sphere.
+            // Movement/squash stay on the root while the visible sphere and its
+            // highlight rotate together, making sports-ball seams visibly roll.
             _ballSpin = new GameObject("BallSpin").transform;
             _ballSpin.SetParent(_ball.transform, false);
-            var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            dot.name = "Highlight";
-            dot.transform.SetParent(_ballSpin, false);
-            dot.transform.localScale = new Vector3(0.23f, 0.12f, 0.23f);
-            dot.transform.localPosition = new Vector3(-0.15f, 0.43f, 0.11f);
-            DestroyImmediate(dot.GetComponent<Collider>());
-            var dr = dot.GetComponent<MeshRenderer>();
-            dr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            dr.receiveShadows = false;
-            dr.sharedMaterial = FlatMat(Color.Lerp(Theme.Ball, Color.white, 0.88f));
+            var surface = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            surface.name = "BallSurface";
+            surface.transform.SetParent(_ballSpin, false);
+            DestroyImmediate(surface.GetComponent<Collider>());
+            _ballRenderer = surface.GetComponent<MeshRenderer>();
+            _ballRenderer.shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            _ballRenderer.sharedMaterial = _matBall;
+            RefreshBallRings();
 
             BuildShadow();
             if (MotionVfxProfile.For(_qualityTier).EagerBuild)
@@ -998,6 +1000,9 @@ namespace PaintMaze.Game
 
             _ball = null;
             _ballSpin = null;
+            _ballRings = null;
+            _ringMesh = null;
+            _ballRenderer = null;
             _shadow = null;
             _sparkFx = null;
             _paintSplashFx = null;
@@ -1129,6 +1134,58 @@ namespace PaintMaze.Game
         {
             if (_ballSpin != null) _ballSpin.localRotation = Quaternion.identity;
         }
+
+        public void RefreshBallSkin()
+        {
+            _matBall = SportsBallArt.MaterialFor(SaveService.EquippedSkinId);
+            if (_ballRenderer != null)
+                _ballRenderer.sharedMaterial = _matBall;
+            RefreshBallRings();
+        }
+
+        /// <summary>
+        /// Rings hang off <c>_ball</c> rather than <c>BallSpin</c> so they keep a
+        /// fixed tilt while the ball tumbles.
+        /// </summary>
+        private void RefreshBallRings()
+        {
+            if (_ball == null) return;
+
+            if (!SportsBallArt.HasRings(SaveService.EquippedSkinId))
+            {
+                if (_ballRings == null) return;
+                _transientRoots.Remove(_ballRings);
+                DestroyOwned(_ballRings);
+                _ballRings = null;
+                return;
+            }
+
+            if (_ballRings != null) return;
+
+            if (_ringMesh == null)
+            {
+                _ringMesh = SportsBallArt.BuildRingMesh(
+                    RingInnerRadius,
+                    RingOuterRadius,
+                    RingSegments);
+                _generatedMeshes.Add(_ringMesh);
+            }
+
+            _ballRings = new GameObject(
+                "BallRings",
+                typeof(MeshFilter),
+                typeof(MeshRenderer));
+            _ballRings.transform.SetParent(_ball.transform, false);
+            _ballRings.transform.localRotation = Quaternion.Euler(RingTilt);
+            _ballRings.GetComponent<MeshFilter>().sharedMesh = _ringMesh;
+            var renderer = _ballRings.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterial = SportsBallArt.RingMaterial();
+            _transientRoots.Add(_ballRings);
+        }
+
 
         public void SetPainted(Position p) => SetPainted(p, true);
 

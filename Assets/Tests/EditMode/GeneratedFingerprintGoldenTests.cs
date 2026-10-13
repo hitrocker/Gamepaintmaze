@@ -7,8 +7,8 @@ namespace PaintMaze.Tests
 {
     /// <summary>
     /// Golden fingerprint snapshots for generated streams, independent of the
-    /// player-facing baked catalog order. Lower modes retain generator v3 while
-    /// Extra Hard intentionally uses its v6 stream.
+    /// player-facing baked catalog order. Easy, Medium, and Hard use generator v5.
+    /// Extra Hard uses generator v7. The fingerprint byte format stays v3.
     /// </summary>
     public class GeneratedFingerprintGoldenTests
     {
@@ -52,22 +52,22 @@ namespace PaintMaze.Tests
             Assert.AreEqual(16, hashes.Count);
         }
 
-        [TestCase(Difficulty.Easy, 501, "E40F22C0561EBFBE")]
-        [TestCase(Difficulty.Easy, 1000, "B3FDD099BA59F58D")]
-        [TestCase(Difficulty.Easy, 2000, "65D326FFCA21D7F2")]
-        [TestCase(Difficulty.Easy, 10000, "9F6017C0438D4D49")]
-        [TestCase(Difficulty.Medium, 501, "D24CEFB133113635")]
-        [TestCase(Difficulty.Medium, 1000, "D61760CA0A726345")]
-        [TestCase(Difficulty.Medium, 2000, "15107517EEE625DB")]
-        [TestCase(Difficulty.Medium, 10000, "6DEF48B38EF325B2")]
-        [TestCase(Difficulty.Hard, 501, "FD4DAF036264BC71")]
-        [TestCase(Difficulty.Hard, 1000, "B3D7452CDB76D165")]
-        [TestCase(Difficulty.Hard, 2000, "13905217D8DDA2C6")]
-        [TestCase(Difficulty.Hard, 10000, "06517AE1495CBB5F")]
-        [TestCase(Difficulty.ExtraHard, 1001, "61E79981B462DBB2")]
-        [TestCase(Difficulty.ExtraHard, 1500, "1B498615D80F559A")]
-        [TestCase(Difficulty.ExtraHard, 2500, "26FC206324B8DB48")]
-        [TestCase(Difficulty.ExtraHard, 10500, "A901794B325B5C10")]
+        [TestCase(Difficulty.Easy, 501, "9E21C057009565BE")]
+        [TestCase(Difficulty.Easy, 1000, "54F2B01E7B96D2D3")]
+        [TestCase(Difficulty.Easy, 2000, "067BE30C0B0EAC38")]
+        [TestCase(Difficulty.Easy, 10000, "3128DFC672730E82")]
+        [TestCase(Difficulty.Medium, 501, "FCFB46BA8E21B6BD")]
+        [TestCase(Difficulty.Medium, 1000, "A2EC0AF997E3D9F6")]
+        [TestCase(Difficulty.Medium, 2000, "C1247C86CD37D6AC")]
+        [TestCase(Difficulty.Medium, 10000, "076D0012655B9023")]
+        [TestCase(Difficulty.Hard, 501, "E980E38F3A248198")]
+        [TestCase(Difficulty.Hard, 1000, "62DE5DCC62BFBE67")]
+        [TestCase(Difficulty.Hard, 2000, "029E833CE71388C0")]
+        [TestCase(Difficulty.Hard, 10000, "BA40ACC3A425D4F5")]
+        [TestCase(Difficulty.ExtraHard, 1001, "5F0E0E98634580B5")]
+        [TestCase(Difficulty.ExtraHard, 1500, "5EE6C899F76C47BF")]
+        [TestCase(Difficulty.ExtraHard, 2500, "17E3F4E3EFC0535A")]
+        [TestCase(Difficulty.ExtraHard, 10500, "954C5916F131F818")]
         public void GeneratedFingerprint_MatchesGoldenSnapshot(Difficulty difficulty, int index, string expectedHex)
         {
             Level level = _provider.GetLevel(difficulty, index);

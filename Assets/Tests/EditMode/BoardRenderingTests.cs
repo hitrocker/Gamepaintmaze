@@ -131,14 +131,46 @@ namespace PaintMaze.Tests
             BoardView3D board = _root.AddComponent<BoardView3D>();
             board.Build(TestHelpers.Make("S#", "._"), Theme.Paint(1));
 
-            var ballRenderer = Require("Ball").GetComponent<MeshRenderer>();
+            var ballRenderer = Require("Ball/BallSpin/BallSurface")
+                .GetComponent<MeshRenderer>();
             Assert.AreEqual("Standard", ballRenderer.sharedMaterial.shader.name);
             Assert.Greater(ballRenderer.sharedMaterial.GetFloat("_Glossiness"), 0.5f);
-            Assert.IsNotNull(_root.transform.Find("Ball/BallSpin/Highlight"));
+            Assert.IsNull(_root.transform.Find("Ball/BallSpin/Highlight"));
 
             Transform shadow = Require("BallShadow");
             Assert.Greater(shadow.localScale.x, shadow.localScale.y);
             Assert.Less(shadow.localPosition.y, board.Ball.localPosition.y);
+        }
+
+        [Test]
+        public void SaturnRings_ExistOnlyForSaturn_AndDoNotTumbleWithTheBall()
+        {
+            try
+            {
+                BoardView3D board = _root.AddComponent<BoardView3D>();
+                board.Build(TestHelpers.Make("S#", "._"), Theme.Paint(1));
+                Assert.IsNull(_root.transform.Find("Ball/BallRings"));
+
+                SaveService.GrantSkin("saturn");
+                SaveService.EquippedSkinId = "saturn";
+                board.RefreshBallSkin();
+
+                Transform rings = Require("Ball/BallRings");
+                Assert.AreEqual("Ball", rings.parent.name);
+                Assert.IsNull(_root.transform.Find("Ball/BallSpin/BallRings"));
+                Assert.Greater(
+                    rings.GetComponent<MeshFilter>().sharedMesh.bounds.extents.x,
+                    0.5f,
+                    "Rings should reach past the ball surface");
+
+                SaveService.EquippedSkinId = "classic";
+                board.RefreshBallSkin();
+                Assert.IsNull(_root.transform.Find("Ball/BallRings"));
+            }
+            finally
+            {
+                EditModeTestSupport.ClearPlayerPrefs();
+            }
         }
 
         [Test]

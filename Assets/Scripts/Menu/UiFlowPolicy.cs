@@ -16,6 +16,13 @@ namespace PaintMaze.Menu
         Account
     }
 
+    public enum SystemBackAction
+    {
+        None,
+        DismissHomeOverlay,
+        ReturnHome
+    }
+
     public static class UiFlowPolicy
     {
         public static bool IsVisible(UiPage active, UiPage candidate) =>
@@ -28,5 +35,16 @@ namespace PaintMaze.Menu
                 : AccountEntryDestination.Account;
 
         public static bool UsesExistingAccount(bool returningMode) => returningMode;
+
+        public static SystemBackAction BackAction(
+            UiPage active,
+            bool hasHomeOverlay)
+        {
+            if (active == UiPage.Home && hasHomeOverlay)
+                return SystemBackAction.DismissHomeOverlay;
+            if (active == UiPage.Leaderboard)
+                return SystemBackAction.ReturnHome;
+            return SystemBackAction.None;
+        }
     }
 }

@@ -137,25 +137,52 @@ namespace PaintMaze.Services
             field.targetGraphic = image;
             field.contentType = contentType;
             field.lineType = InputField.LineType.SingleLine;
-            field.caretColor = Theme.Ink;
+            field.caretColor = Theme.OnCircle;
             field.selectionColor = new Color(0.24f, 0.56f, 0.9f, 0.45f);
 
-            var value = Text(image.rectTransform, "Value", string.Empty, 30, Theme.Ink,
+            bool isPassword = contentType == InputField.ContentType.Password;
+            float rightPadding = isPassword ? 112f : 30f;
+            var value = Text(image.rectTransform, "Value", string.Empty, 30, Theme.OnCircle,
                 TextAnchor.MiddleLeft);
             value.supportRichText = false;
             value.horizontalOverflow = HorizontalWrapMode.Wrap;
-            Stretch(value.rectTransform, 30f, 30f, 10f, 10f);
+            Stretch(value.rectTransform, 30f, rightPadding, 10f, 10f);
 
             var hintColor = Theme.InkSoft;
             hintColor.a = 0.72f;
             var hint = Text(image.rectTransform, "Placeholder", placeholder, 30, hintColor,
                 TextAnchor.MiddleLeft, FontStyle.Italic);
             hint.horizontalOverflow = HorizontalWrapMode.Wrap;
-            Stretch(hint.rectTransform, 30f, 30f, 10f, 10f);
+            Stretch(hint.rectTransform, 30f, rightPadding, 10f, 10f);
 
             field.textComponent = value;
             field.placeholder = hint;
+            if (isPassword) AddPasswordVisibilityToggle(field, image.rectTransform);
             return field;
+        }
+
+        private static void AddPasswordVisibilityToggle(InputField field, RectTransform parent)
+        {
+            var button = Button(parent, "PasswordVisibility", Color.clear, null, out var buttonImage);
+            Anchor(buttonImage.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(96f, 88f), new Vector2(-8f, 0f));
+
+            var icon = Image(buttonImage.rectTransform, "VisibilityIcon", Theme.OnCircle,
+                SpriteFactory.Eye(false));
+            icon.raycastTarget = false;
+            Anchor(icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(48f, 48f), Vector2.zero);
+
+            bool visible = false;
+            button.onClick.AddListener(() =>
+            {
+                visible = !visible;
+                field.contentType = visible
+                    ? InputField.ContentType.Standard
+                    : InputField.ContentType.Password;
+                icon.sprite = SpriteFactory.Eye(visible);
+                field.ForceLabelUpdate();
+            });
         }
     }
 }

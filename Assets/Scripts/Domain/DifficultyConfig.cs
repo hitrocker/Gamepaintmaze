@@ -1,3 +1,5 @@
+using PaintMaze.Core;
+
 namespace PaintMaze.Domain
 {
     /// <summary>
@@ -5,10 +7,13 @@ namespace PaintMaze.Domain
     /// Kept as pure data (no engine types) so the generator and tests can use it
     /// directly. Colors live in the presentation Theme, not here.
     ///
-    ///  - Base/Max rows:    board height progression
-    ///  - Base/Max columns: board width progression
-    ///  - ObstacleFraction: fraction of the open room filled with wall blocks
+    ///  - Base/Max rows:    board height band
+    ///  - Base/Max columns: board width band
+    ///  - ObstacleFraction: center of the wall fraction band
     ///  - BakedLevelCount:  deterministic sectioned levels bundled with the game
+    ///
+    /// Easy, Medium, and Hard pick a size and obstacle fraction inside the band
+    /// for each level. Extra Hard and Ultra Hard keep their fixed size bands.
     /// </summary>
     public sealed class DifficultyConfig
     {
@@ -53,7 +58,8 @@ namespace PaintMaze.Domain
                 return ExtraHardDimensions(levelNumber).rows;
             if (_difficulty == Difficulty.UltraHard)
                 return UltraHardDimensions(levelNumber).rows;
-            return Grow(BaseRows, MaxRows, levelNumber);
+            ResolveStandardSize(levelNumber, out int rows, out _);
+            return rows;
         }
 
         public int BoardColsFor(int levelNumber)
@@ -62,17 +68,43 @@ namespace PaintMaze.Domain
                 return ExtraHardDimensions(levelNumber).cols;
             if (_difficulty == Difficulty.UltraHard)
                 return UltraHardDimensions(levelNumber).cols;
-            return Grow(BaseCols, MaxCols, levelNumber);
+            ResolveStandardSize(levelNumber, out _, out int cols);
+            return cols;
+        }
+
+        /// <summary>
+        /// Wall fraction for this level. Standard modes move inside a band around
+        /// <see cref="ObstacleFraction"/>. Arena modes keep the configured constant.
+        /// </summary>
+        public double ObstacleFractionFor(int levelNumber)
+        {
+            if (_difficulty >= Difficulty.ExtraHard)
+                return ObstacleFraction;
+
+            int index = System.Math.Max(1, levelNumber);
+            int seed = LevelSeed.For(
+                _difficulty, index, LevelGenerator.VersionFor(_difficulty), 0x46524143);
+            int step = new DeterministicRng(seed).Next(5);
+            double value = ObstacleFraction + (step - 2) * 0.03;
+            if (value < 0.08) value = 0.08;
+            if (value > 0.28) value = 0.28;
+            return value;
         }
 
         /// <summary>Largest board dimension, retained for square fallback/test helpers.</summary>
         public int BoardSizeFor(int levelNumber) =>
             System.Math.Max(BoardRowsFor(levelNumber), BoardColsFor(levelNumber));
 
-        private static int Grow(int start, int max, int levelNumber)
+        private void ResolveStandardSize(int levelNumber, out int rows, out int cols)
         {
-            int band = System.Math.Max(0, levelNumber - 1) / 125;
-            return System.Math.Min(max, start + band);
+            int index = System.Math.Max(1, levelNumber);
+            int seed = LevelSeed.For(
+                _difficulty, index, LevelGenerator.VersionFor(_difficulty), 0x53495A45);
+            var rng = new DeterministicRng(seed);
+            int rowSpan = System.Math.Max(1, MaxRows - BaseRows + 1);
+            int colSpan = System.Math.Max(1, MaxCols - BaseCols + 1);
+            rows = BaseRows + rng.Next(rowSpan);
+            cols = BaseCols + rng.Next(colSpan);
         }
 
         private static (int rows, int cols) ExtraHardDimensions(int levelNumber)

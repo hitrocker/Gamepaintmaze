@@ -29,6 +29,7 @@ namespace PaintMaze.Menu
         private readonly Dictionary<int, Image> _tiles = new();
         private RectTransform _board;
         private RectTransform _ball;
+        private Image _ballImage;
         private Coroutine _loop;
         private Color _paint;
         private bool _built;
@@ -48,8 +49,18 @@ namespace PaintMaze.Menu
         {
             _paint = Theme.Paint(levelNumber);
             if (!_built) return;
+            RefreshBallSkin();
             ResetPreview();
             RestartLoop();
+        }
+
+        public void RefreshBallSkin()
+        {
+            if (_ballImage == null) return;
+            _ballImage.sprite = SportsBallArt.IconFor(SaveService.EquippedSkinId);
+            _ballImage.type = Image.Type.Simple;
+            _ballImage.color = Color.white;
+            _ballImage.preserveAspect = true;
         }
 
         private void BuildTiles()
@@ -94,9 +105,15 @@ namespace PaintMaze.Menu
             shadowRt.pivot = new Vector2(0.5f, 0.5f);
             shadowRt.sizeDelta = new Vector2(62f, 42f);
 
-            var ball = UiKit.Image(_board, "Ball", Theme.Ball, SpriteFactory.Circle());
-            ball.raycastTarget = false;
-            _ball = ball.rectTransform;
+            _ballImage = UiKit.Image(
+                _board,
+                "Ball",
+                Color.white,
+                SportsBallArt.IconFor(SaveService.EquippedSkinId));
+            _ballImage.type = Image.Type.Simple;
+            _ballImage.preserveAspect = true;
+            _ballImage.raycastTarget = false;
+            _ball = _ballImage.rectTransform;
             _ball.anchorMin = _ball.anchorMax = new Vector2(0.5f, 0.5f);
             _ball.pivot = new Vector2(0.5f, 0.5f);
             _ball.sizeDelta = Vector2.one * 58f;

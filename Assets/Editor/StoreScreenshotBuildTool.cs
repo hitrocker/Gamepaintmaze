@@ -16,18 +16,22 @@ namespace PaintMaze.EditorTools
                 "Unlit/Transparent",
                 "Sprites/Default",
                 "Legacy Shaders/Particles/Additive",
-                "Mobile/Particles/Additive");
+                "Mobile/Particles/Additive",
+                "Custom/BallSkin",
+                "Custom/BallSkinSports");
 
             string previousProductName = PlayerSettings.productName;
             string previousCompanyName = PlayerSettings.companyName;
             UIOrientation previousOrientation =
                 PlayerSettings.defaultInterfaceOrientation;
+            bool previousRunInBackground = PlayerSettings.runInBackground;
             BuildReport report;
             try
             {
                 PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
                 PlayerSettings.productName = "Paint Maze Screenshot";
                 PlayerSettings.companyName = "PaintMaze";
+                PlayerSettings.runInBackground = true;
 
                 var options = new BuildPlayerOptions
                 {
@@ -43,6 +47,7 @@ namespace PaintMaze.EditorTools
                 PlayerSettings.productName = previousProductName;
                 PlayerSettings.companyName = previousCompanyName;
                 PlayerSettings.defaultInterfaceOrientation = previousOrientation;
+                PlayerSettings.runInBackground = previousRunInBackground;
                 AssetDatabase.SaveAssets();
             }
 

@@ -59,6 +59,9 @@ namespace PaintMaze.Core
             Difficulty difficulty,
             int index,
             int analysisSeed,
+            int generatorVersion,
+            int attemptNumber,
+            IReadOnlyList<LevelShapeProfile> recent,
             out LevelDifficultyMetrics difficultyMetrics)
         {
             difficultyMetrics = null;
@@ -66,7 +69,19 @@ namespace PaintMaze.Core
             var certified = new List<SearchState>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
-            int firstVariant = rng.Next(rows == cols ? 8 : 4);
+            int span = ExtraHardTemplateVariety.Span(rows, cols);
+            int rolled = rng.Next(span);
+            int firstVariant = rolled;
+            var config = DifficultyConfig.For(difficulty);
+            if (index > 1 &&
+                config.BoardRowsFor(index - 1) == rows &&
+                config.BoardColsFor(index - 1) == cols)
+            {
+                int previous = ExtraHardTemplateVariety.PublishedVariant(
+                    difficulty, index - 1, rows, cols, generatorVersion, attemptNumber);
+                if (previous == rolled)
+                    firstVariant = (rolled + 1) % span;
+            }
             for (int i = 0; i < 3; i++)
             {
                 Tile[,] seedGrid = ArenaExtraHardTemplateBank.Build(
@@ -124,11 +139,15 @@ namespace PaintMaze.Core
                     level,
                     unchecked(analysisSeed + i * 7919),
                     LevelDifficultyAnalysisOptions.Runtime);
+                LevelSlideStats slides = LevelSlideStats.Measure(level);
+                LevelShapeProfile profile = LevelShapeProfile.FromParts(
+                    level, slides, state.Layout, metrics.Turns, metrics.Reversals);
                 double rank =
                     -Math.Abs(metrics.Score - target) +
                     metrics.Score * 0.08 +
                     state.Rank * 0.015 +
-                    state.MutationCount * 1.5;
+                    state.MutationCount * 1.5 -
+                    LevelShapeComparison.SimilarityPenalty(profile, recent);
                 if (rank <= bestRank) continue;
                 bestRank = rank;
                 best = state;

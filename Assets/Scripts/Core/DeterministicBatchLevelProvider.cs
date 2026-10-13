@@ -346,7 +346,7 @@ namespace PaintMaze.Core
                 fallback = sourceDifficulty >= Difficulty.ExtraHard
                     ? _generator.GenerateCertifiedOpenFallback(
                         rows, cols, sourceDifficulty, sourceIndex)
-                    : _generator.GenerateGuaranteedFallback(
+                    : _generator.GenerateReadableFallback(
                         rows, cols, sourceDifficulty, sourceIndex);
             }
             var published = new Level(fallback.Grid, fallback.Spawn, difficulty, index);

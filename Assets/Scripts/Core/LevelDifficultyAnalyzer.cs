@@ -207,11 +207,17 @@ namespace PaintMaze.Core
         public static double TargetScore(Difficulty difficulty, int sourceIndex)
         {
             int index = Math.Max(1, sourceIndex);
+            if (difficulty == Difficulty.Easy)
+                return 16.0 + Math.Min(6.0, (index - 1) / 80.0);
+            if (difficulty == Difficulty.Medium)
+                return 22.0 + Math.Min(8.0, (index - 1) / 70.0);
+            if (difficulty == Difficulty.Hard)
+                return 28.0 + Math.Min(10.0, (index - 1) / 60.0);
             if (difficulty == Difficulty.ExtraHard)
                 return 18.0 + Math.Min(18.0, (index - 1) / 28.0);
             if (difficulty == Difficulty.UltraHard)
                 return 28.0 + Math.Min(24.0, (index - 1) / 24.0);
-            return 0;
+            return 16.0;
         }
 
         public static bool MeetsExtraHardFloor(

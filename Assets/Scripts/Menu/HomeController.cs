@@ -15,12 +15,17 @@ namespace PaintMaze.Menu
     /// </summary>
     public sealed class HomeController : MonoBehaviour
     {
+        private const float HomeCardWidth = 900f;
+        private const float HomeCardShadowWidth = 908f;
+
         public event Action<Difficulty, int> Play;
         public event Action<Difficulty, int> SelectionChanged;
         public event Action ThemeChanged;
         public event Action AccountRequested;
         public event Action SignInRequested;
         public event Action LeaderboardRequested;
+        public event Action DailyPlay;
+        public event Action BallSkinChanged;
 
         private RectTransform _root;
         private RectTransform _safe;
@@ -31,15 +36,54 @@ namespace PaintMaze.Menu
         private Text _endlessLabel;
         private HomeMazePreview _preview;
         private SettingsPanel _settings;
+        private BallShopPanel _shop;
         private HowToPlayController _howTo;
         private AuthService _auth;
+        private CosmeticService _cosmetics;
+        private DailyPuzzleService _dailyService;
+        private Text _dailyStatusLabel;
+        private Text _dailyActionLabel;
+        private Button _dailyButton;
+        private Text _coinsLabel;
+        private Text _toastLabel;
+        private Coroutine _toastRoutine;
         private Difficulty _selected;
 
         public Difficulty SelectedDifficulty => _selected;
+        public bool HasDismissibleOverlay =>
+            (_howTo != null && _howTo.gameObject.activeSelf) ||
+            (_shop != null && _shop.gameObject.activeSelf) ||
+            (_settings != null && _settings.gameObject.activeSelf);
 
-        public void Build(RectTransform parent, AuthService auth)
+        public bool DismissActiveOverlay()
+        {
+            if (_howTo != null && _howTo.gameObject.activeSelf)
+            {
+                _howTo.Hide();
+                return true;
+            }
+            if (_shop != null && _shop.gameObject.activeSelf)
+            {
+                _shop.Hide();
+                return true;
+            }
+            if (_settings != null && _settings.gameObject.activeSelf)
+            {
+                _settings.Hide();
+                return true;
+            }
+            return false;
+        }
+
+        public void Build(
+            RectTransform parent,
+            AuthService auth,
+            DailyPuzzleService dailyService = null,
+            CosmeticService cosmetics = null)
         {
             _auth = auth;
+            _dailyService = dailyService;
+            _cosmetics = cosmetics;
             _selected = SaveService.SelectedDifficulty;
             Theme.Mode = SaveService.ThemeMode;
 
@@ -62,12 +106,12 @@ namespace PaintMaze.Menu
             var title = UiKit.Text(_safe, "Title", "PAINT MAZE", 76, Theme.Ink,
                 TextAnchor.MiddleCenter, FontStyle.Bold);
             UiKit.Anchor(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(760f, 102f), new Vector2(0f, -104f));
+                new Vector2(760f, 102f), new Vector2(0f, -160f));
 
             var subtitle = UiKit.Text(_safe, "Subtitle", "PAINT EVERY TILE", 28, Theme.InkSoft,
                 TextAnchor.MiddleCenter, FontStyle.Bold);
             UiKit.Anchor(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(700f, 44f), new Vector2(0f, -194f));
+                new Vector2(700f, 44f), new Vector2(0f, -250f));
 
             var previewHost = new GameObject("MazePreview", typeof(RectTransform));
             previewHost.transform.SetParent(_safe, false);
@@ -77,16 +121,22 @@ namespace PaintMaze.Menu
             _preview = previewHost.AddComponent<HomeMazePreview>();
             _preview.Build(previewRt, CurrentLevel);
 
+            RectTransform dailyCard = _dailyService != null
+                ? BuildDailyCard()
+                : null;
             RectTransform card = BuildGameCard();
             RectTransform actions = BuildBottomActionBar();
             BuildSettingsPanel();
+            BuildShopPanel();
             BuildHowToPanel();
             RefreshData();
 
             StartCoroutine(AnimateIn(title.rectTransform, 0f, new Vector2(0f, 18f)));
             StartCoroutine(AnimateIn(previewRt, 0.05f, new Vector2(0f, -20f)));
-            StartCoroutine(AnimateIn(card, 0.1f, new Vector2(0f, -28f)));
-            StartCoroutine(AnimateIn(actions, 0.14f, new Vector2(0f, -24f)));
+            if (dailyCard != null)
+                StartCoroutine(AnimateIn(dailyCard, 0.1f, new Vector2(0f, -24f)));
+            StartCoroutine(AnimateIn(card, 0.14f, new Vector2(0f, -28f)));
+            StartCoroutine(AnimateIn(actions, 0.18f, new Vector2(0f, -24f)));
         }
 
         private void ApplyBackground()
@@ -116,6 +166,92 @@ namespace PaintMaze.Menu
 
         private void BuildTopActions()
         {
+            Image coinsImage = UiKit.Image(
+                _safe,
+                "CoinsChip",
+                Theme.CircleBg,
+                SpriteFactory.RoundedRect(72, 24));
+            coinsImage.raycastTarget = false;
+            UiKit.Anchor(
+                coinsImage.rectTransform,
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(188f, 58f),
+                new Vector2(48f, -33f));
+            Image coinIcon = UiKit.Image(
+                coinsImage.rectTransform,
+                "CoinsIcon",
+                Color.white,
+                SpriteFactory.Coins());
+            coinIcon.raycastTarget = false;
+            UiKit.Anchor(
+                coinIcon.rectTransform,
+                new Vector2(0f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(40f, 40f),
+                new Vector2(55f, 0f));
+            _coinsLabel = UiKit.Text(
+                coinsImage.rectTransform,
+                "Label",
+                "0",
+                30,
+                Theme.Gold,
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                _coinsLabel.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(110f, 52f),
+                new Vector2(24f, 0f));
+            _coinsLabel.raycastTarget = false;
+            RefreshCoins();
+
+            _toastLabel = UiKit.Text(
+                _safe,
+                "HomeToast",
+                string.Empty,
+                28,
+                Theme.Ink,
+                TextAnchor.MiddleCenter,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                _toastLabel.rectTransform,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(720f, 48f),
+                new Vector2(0f, -150f));
+            _toastLabel.raycastTarget = false;
+            _toastLabel.gameObject.SetActive(false);
+
+            var cartBtn = UiKit.Button(
+                _safe,
+                "CartButton",
+                Theme.CircleBg,
+                SpriteFactory.Circle(),
+                out Image cartImage);
+            UiKit.Anchor(
+                cartImage.rectTransform,
+                new Vector2(1f, 1f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(84f, 84f),
+                new Vector2(-266f, -62f));
+            Image cartIcon = UiKit.Image(
+                cartImage.rectTransform,
+                "CartIcon",
+                Theme.OnCircle,
+                SpriteFactory.Cart());
+            cartIcon.raycastTarget = false;
+            cartIcon.preserveAspect = true;
+            UiKit.Anchor(
+                cartIcon.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(60f, 60f),
+                Vector2.zero);
+            cartBtn.onClick.AddListener(() => _shop?.Show());
+            AddPressFx(cartImage.rectTransform, 0.9f);
+
             var themeBtn = UiKit.Button(_safe, "ThemeToggle", Theme.CircleBg,
                 SpriteFactory.Circle(), out var themeImg);
             UiKit.Anchor(themeImg.rectTransform, new Vector2(1f, 1f), new Vector2(0.5f, 0.5f),
@@ -146,7 +282,19 @@ namespace PaintMaze.Menu
             sliderHost.transform.SetParent(dockRt, false);
             var sliderRt = (RectTransform)sliderHost.transform;
             UiKit.Anchor(sliderRt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(850f, 88f), new Vector2(0f, 0f));
+                new Vector2(HomeCardWidth, 88f), new Vector2(0f, 0f));
+            var sliderShadow = UiKit.Image(
+                sliderRt,
+                "DifficultyShadow",
+                new Color(0f, 0f, 0f, 0.14f),
+                SpriteFactory.RoundedRect(64, 32));
+            sliderShadow.raycastTarget = false;
+            UiKit.Anchor(
+                sliderShadow.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(HomeCardShadowWidth, 94f),
+                new Vector2(6f, -8f));
             var slider = sliderHost.AddComponent<DifficultySlider>();
             slider.Build(sliderRt, _selected);
             slider.Changed += OnDifficultyChanged;
@@ -155,12 +303,12 @@ namespace PaintMaze.Menu
                 SpriteFactory.RoundedRect(80, 24));
             shadow.raycastTarget = false;
             UiKit.Anchor(shadow.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(908f, 122f), new Vector2(0f, -8f));
+                new Vector2(HomeCardShadowWidth, 122f), new Vector2(6f, -8f));
 
             var card = UiKit.Image(dockRt, "LaunchCard", Theme.CardBg, SpriteFactory.RoundedRect(80, 24));
             var cardRt = card.rectTransform;
             UiKit.Anchor(cardRt, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(900f, 116f), Vector2.zero);
+                new Vector2(HomeCardWidth, 116f), Vector2.zero);
 
             _levelLabel = UiKit.Text(cardRt, "LevelPosition", "EASY  ·  LEVEL 1", 32, Theme.Ink,
                 TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -172,6 +320,85 @@ namespace PaintMaze.Menu
             UiKit.Anchor(_endlessLabel.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(180f, 54f), new Vector2(-42f, 0f));
             return dockRt;
+        }
+
+        private RectTransform BuildDailyCard()
+        {
+            var shadow = UiKit.Image(
+                _safe,
+                "DailyPuzzleShadow",
+                new Color(0f, 0f, 0f, 0.14f),
+                SpriteFactory.RoundedRect(76, 24));
+            shadow.raycastTarget = false;
+            UiKit.Anchor(
+                shadow.rectTransform,
+                new Vector2(0.5f, 0.405f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(HomeCardShadowWidth, 132f),
+                new Vector2(6f, -8f));
+
+            _dailyButton = UiKit.Button(
+                _safe,
+                "DailyPuzzle",
+                Theme.CardBg,
+                SpriteFactory.RoundedRect(76, 24),
+                out var card);
+            UiKit.Anchor(
+                card.rectTransform,
+                new Vector2(0.5f, 0.405f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(HomeCardWidth, 126f),
+                Vector2.zero);
+
+            var title = UiKit.Text(
+                card.rectTransform,
+                "DailyTitle",
+                "DAILY PUZZLE",
+                29,
+                Theme.Ink,
+                TextAnchor.MiddleLeft,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                title.rectTransform,
+                new Vector2(0f, 0.5f),
+                new Vector2(0f, 0.5f),
+                new Vector2(500f, 42f),
+                new Vector2(42f, 24f));
+
+            _dailyStatusLabel = UiKit.Text(
+                card.rectTransform,
+                "DailyStatus",
+                string.Empty,
+                22,
+                Theme.InkSoft,
+                TextAnchor.MiddleLeft,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                _dailyStatusLabel.rectTransform,
+                new Vector2(0f, 0.5f),
+                new Vector2(0f, 0.5f),
+                new Vector2(610f, 38f),
+                new Vector2(42f, -24f));
+
+            _dailyActionLabel = UiKit.Text(
+                card.rectTransform,
+                "DailyAction",
+                "PLAY  ▶",
+                26,
+                Theme.Gold,
+                TextAnchor.MiddleRight,
+                FontStyle.Bold);
+            UiKit.Anchor(
+                _dailyActionLabel.rectTransform,
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(230f, 54f),
+                new Vector2(-42f, 0f));
+
+            _dailyButton.onClick.AddListener(() => DailyPlay?.Invoke());
+            AddPressFx(card.rectTransform, 0.97f, true);
+            RefreshDailyData();
+            return card.rectTransform;
         }
 
         private RectTransform BuildBottomActionBar()
@@ -220,6 +447,21 @@ namespace PaintMaze.Menu
             _settings.Build(rt, _auth, null);
             _settings.SignInRequested += () => SignInRequested?.Invoke();
             _settings.AccountRequested += () => AccountRequested?.Invoke();
+        }
+
+        private void BuildShopPanel()
+        {
+            var go = new GameObject("BallShopPanel", typeof(RectTransform));
+            go.transform.SetParent(_root, false);
+            var rt = (RectTransform)go.transform;
+            UiKit.Stretch(rt);
+            _shop = go.AddComponent<BallShopPanel>();
+            _shop.Build(rt, _cosmetics);
+            _shop.SelectionChanged += () =>
+            {
+                RefreshCosmetics();
+                BallSkinChanged?.Invoke();
+            };
         }
 
         private void BuildHowToPanel()
@@ -346,6 +588,104 @@ namespace PaintMaze.Menu
             if (_levelLabel != null)
                 _levelLabel.text = LevelLabel.DockPosition(_selected, CurrentLevel);
             if (_endlessLabel != null) _endlessLabel.text = LevelLabel.Endless;
+            RefreshCoins();
+            RefreshDailyData();
+        }
+
+        public void RefreshCoins()
+        {
+            if (_coinsLabel == null) return;
+            _coinsLabel.text = SaveService.Coins.ToString("N0");
+            _coinsLabel.color = Theme.Gold;
+        }
+
+        public void RefreshCosmetics()
+        {
+            RefreshCoins();
+            _preview?.RefreshBallSkin();
+        }
+
+        public void ShowToast(string message)
+        {
+            if (_toastLabel == null || string.IsNullOrWhiteSpace(message)) return;
+            if (_toastRoutine != null) StopCoroutine(_toastRoutine);
+            _toastRoutine = StartCoroutine(ShowToastRoutine(message));
+        }
+
+        private IEnumerator ShowToastRoutine(string message)
+        {
+            _toastLabel.text = message;
+            _toastLabel.color = Theme.Ink;
+            _toastLabel.gameObject.SetActive(true);
+            var group = _toastLabel.GetComponent<CanvasGroup>();
+            if (group == null) group = _toastLabel.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+
+            float t = 0f;
+            while (t < 0.2f)
+            {
+                t += Time.unscaledDeltaTime;
+                group.alpha = Mathf.Clamp01(t / 0.2f);
+                yield return null;
+            }
+
+            group.alpha = 1f;
+            yield return new WaitForSecondsRealtime(2.2f);
+
+            t = 0f;
+            while (t < 0.25f)
+            {
+                t += Time.unscaledDeltaTime;
+                group.alpha = 1f - Mathf.Clamp01(t / 0.25f);
+                yield return null;
+            }
+
+            _toastLabel.gameObject.SetActive(false);
+            _toastRoutine = null;
+        }
+
+        private void RefreshDailyData()
+        {
+            if (_dailyService == null || _dailyStatusLabel == null) return;
+            DailyPuzzleStatus status = _dailyService.Today;
+            if (_dailyButton != null)
+                _dailyButton.interactable = !status.IsLocked;
+            if (status.IsLocked)
+            {
+                _dailyStatusLabel.text = status.IsCompleted
+                    ? $"COMPLETED  ·  {DailyPuzzleService.MaxAttempts}/" +
+                      $"{DailyPuzzleService.MaxAttempts} TRIES  ·  " +
+                      $"STREAK {status.CurrentStreak}"
+                    : $"{DailyPuzzleService.MaxAttempts} TRIES USED  ·  " +
+                      "NEW PUZZLE TOMORROW";
+                if (_dailyActionLabel != null)
+                    _dailyActionLabel.text = "LOCKED";
+                return;
+            }
+            if (status.IsAttemptInProgress)
+            {
+                _dailyStatusLabel.text =
+                    $"TRY {status.AttemptsUsed}/" +
+                    $"{DailyPuzzleService.MaxAttempts} IN PROGRESS";
+                if (_dailyActionLabel != null)
+                    _dailyActionLabel.text = "RESUME  ▶";
+                return;
+            }
+            if (status.IsCompleted)
+            {
+                _dailyStatusLabel.text =
+                    $"COMPLETED  ·  {status.AttemptsUsed}/" +
+                    $"{DailyPuzzleService.MaxAttempts} TRIES  ·  " +
+                    $"STREAK {status.CurrentStreak}";
+                if (_dailyActionLabel != null) _dailyActionLabel.text = "REPLAY  ▶";
+                return;
+            }
+
+            _dailyStatusLabel.text = status.CurrentStreak > 0
+                ? $"MEDIUM  ·  {DailyPuzzleService.MaxAttempts} TRIES  ·  " +
+                  $"STREAK {status.CurrentStreak}"
+                : $"MEDIUM  ·  {DailyPuzzleService.MaxAttempts} TRIES TODAY";
+            if (_dailyActionLabel != null) _dailyActionLabel.text = "PLAY  ▶";
         }
 
         private static void AddPressFx(RectTransform target, float scale, bool overshoot = false)

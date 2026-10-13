@@ -22,13 +22,27 @@ namespace PaintMaze.Tests
             EditModeTestSupport.ClearPlayerPrefs();
         }
 
-        [Test]
-        public void Migration_ResetsUnlockProgress_ToOne()
+        [TestCase(0)]
+        [TestCase(1)]
+        public void Migration_PreservesLegacyUnlockProgress(int schema)
         {
-            SeedLegacyProgress(unlockedLevel: 47);
+            SeedLegacyProgress(unlockedLevel: 47, schema: schema);
+
             _ = SaveService.HighestUnlocked(Difficulty.Easy);
-            Assert.AreEqual(1, SaveService.HighestUnlocked(Difficulty.Easy));
-            Assert.AreEqual(1, SaveService.HighestUnlocked(Difficulty.UltraHard));
+
+            Assert.AreEqual(47, SaveService.HighestUnlocked(Difficulty.Easy));
+            Assert.AreEqual(47, SaveService.HighestUnlocked(Difficulty.Medium));
+            Assert.AreEqual(47, SaveService.HighestUnlocked(Difficulty.Hard));
+            Assert.AreEqual(
+                DifficultyCatalog.StandardBakedCount + 47,
+                SaveService.HighestUnlocked(Difficulty.ExtraHard));
+        }
+
+        [Test]
+        public void FreshInstall_DefaultsEachTrackToLevelOne()
+        {
+            foreach (Difficulty difficulty in DifficultyCatalog.Playable)
+                Assert.AreEqual(1, SaveService.HighestUnlocked(difficulty));
         }
 
         [Test]
@@ -51,14 +65,14 @@ namespace PaintMaze.Tests
         public void Migration_IsIdempotent()
         {
             SeedLegacyProgress(unlockedLevel: 25);
-            SaveService.MarkCompleted(Difficulty.Hard, 3);
+            SaveService.MarkCompleted(Difficulty.Hard, 30);
             int unlocked = SaveService.HighestUnlocked(Difficulty.Hard);
-            Assert.AreEqual(4, unlocked);
+            Assert.AreEqual(31, unlocked);
             Assert.AreEqual(SaveService.CurrentSchemaVersion, PlayerPrefs.GetInt("pm_save_schema", 0));
 
             // Second migration pass must not reset progress again.
             SaveService.EnsureMigrated();
-            Assert.AreEqual(4, SaveService.HighestUnlocked(Difficulty.Hard));
+            Assert.AreEqual(31, SaveService.HighestUnlocked(Difficulty.Hard));
             Assert.AreEqual(ThemeMode.Dark, SaveService.ThemeMode);
         }
 
@@ -114,17 +128,6 @@ namespace PaintMaze.Tests
             SaveService.EnsureMigrated();
 
             Assert.IsFalse(Directory.Exists(cache));
-        }
-
-        [Test]
-        public void CameraShake_DefaultsOff_AndPersistsSelection()
-        {
-            Assert.IsFalse(SaveService.CameraShakeEnabled);
-
-            SaveService.CameraShakeEnabled = true;
-
-            Assert.IsTrue(SaveService.CameraShakeEnabled);
-            Assert.AreEqual(1, PlayerPrefs.GetInt("pm_camera_shake"));
         }
 
         [Test]
@@ -244,9 +247,9 @@ namespace PaintMaze.Tests
             Assert.IsFalse(SaveService.SoundEnabled);
         }
 
-        private static void SeedLegacyProgress(int unlockedLevel)
+        private static void SeedLegacyProgress(int unlockedLevel, int schema = 0)
         {
-            PlayerPrefs.SetInt("pm_save_schema", 0);
+            PlayerPrefs.SetInt("pm_save_schema", schema);
             foreach (Difficulty d in EditModeTestSupport.AllDifficulties)
                 PlayerPrefs.SetInt("pm_unlocked_" + (int)d, unlockedLevel);
             string cache = Path.Combine(Application.persistentDataPath, "generated-levels");

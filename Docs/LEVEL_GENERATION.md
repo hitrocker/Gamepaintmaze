@@ -96,8 +96,10 @@ display name, and baked count.
 | Hard | 9→10 | 8→9 | 0.22 | 500 |
 | Extra Hard | 9→16 | 9→22 | 0.26 / legacy 0.30 | 5,000 |
 
-Easy, Medium, and Hard retain their version-3 one-step growth every 125 levels. Extra
-Hard uses explicit source bands:
+Easy, Medium, and Hard no longer sit on one size for 125 levels. Each level draws
+rows and columns from that mode's band (Easy 7–8 by 6–7, Medium 8–9 by 7–8,
+Hard 9–10 by 8–9) and an obstacle fraction around the mode center (about ±0.06,
+still below Ultra Hard's 0.30). Extra Hard keeps its fixed arena bands:
 
 | Visible levels | Source tuple | Dimensions |
 | --- | --- | --- |
@@ -179,18 +181,26 @@ The source runtime board is a pure function of:
 For visible Extra Hard N ≥ 1001, routing resolves this tuple to
 `(GeneratorVersion, UltraHard, N - 500)` and restamps the returned level as Extra Hard N.
 
-Current deterministic versions are scoped so lower tracks preserve their existing
-outputs:
+Current deterministic versions:
 
 ```text
-Easy / Medium / Hard seed stream  = 3
-ExtraHard / UltraHard seed stream = 6
+Easy / Medium / Hard seed stream  = 5
+ExtraHard / UltraHard seed stream = 7
 LevelFingerprint format           = 3
+LevelCatalogOrder                 = 1
 ```
 
+Version 5 changes Easy, Medium, and Hard layouts: solution-shape ranking, per-level
+size and obstacle fraction, and more than one wall grammar. Version 7 changes Extra
+Hard and Ultra Hard layouts: the same recent-level similarity, so a template
+orientation is not repeated on the next same-size board. `LevelCatalogOrder` was
+not reshuffled. The baked Resources catalogs (Easy/Medium/Hard 1–500 and Extra Hard
+1–5000) are still the previous streams until they are regenerated. Runtime generation
+above those boundaries uses versions 5 and 7 immediately.
+
 `LevelGenerator.VersionFor` is the authority for generation and cache headers. The
-fingerprint version is a canonical format version and remains 3 so unchanged lower-mode
-fingerprints remain stable and cross-mode duplicate detection stays structural.
+fingerprint version is a canonical format version and remains 3. Easy, Medium, and
+Hard hashes change because their layouts changed, not because the byte format changed.
 
 ### Seeds
 
@@ -226,8 +236,9 @@ and generator tests.
 2. Searches a deterministic set of attempts.
 3. Generates multiple candidates around the target obstacle fraction.
 4. Scores candidates that pass quality floors.
-5. Returns the highest-scoring candidate.
-6. Uses the guaranteed fallback if no candidate survives.
+5. Returns the candidate closest to that mode's solution-shape target.
+6. For Easy, Medium, and Hard, uses a bent corridor or vertical lanes if nothing
+   survives. Extra Hard never publishes the serpentine corridor.
 
 Default options:
 
@@ -235,7 +246,7 @@ Default options:
 AttemptCount         12
 EvaluateMinMoves     false
 MinMovesMaxStates    200,000
-GeneratorVersion     6 (resolved to 3 for lower modes)
+GeneratorVersion     7 (resolved to 5 for Easy, Medium, and Hard)
 ```
 
 ### Candidate generation
@@ -244,12 +255,24 @@ GeneratorVersion     6 (resolved to 3 for lower modes)
 
 1. Builds an irregular mask using edge-connected cuts.
 2. Converts occupied mask cells to Floor and exterior cuts to Void.
-3. Scatters short Wall bars.
+3. Places one wall grammar. Short-bar scatter remains. The other grammars are a
+   room with a single gap, one long divider, a compact wall island, or a side
+   pocket that has to be reversed out of. The level's preferred grammar comes
+   from its seed; some candidates try the others.
 4. Preserves Floor connectivity.
 5. Seals enclosed Void to Wall.
 6. Requires at least one exterior Void.
 7. tries deterministic spawn candidates.
 8. accepts only a board that is always solvable.
+
+Easy, Medium, and Hard then rank surviving boards by `LevelDifficultyAnalyzer`
+solution shape (turns, reversals, slide-length mix, rollout failure) against
+`TargetScore`, with smaller / prettier / fewer-walls / less-messy as secondary
+tastes. A board whose slides are almost all one cell, or one slide that paints
+most of the floor, is not published. A rotation or mirror of one of the last
+few accepted shapes is rejected. If search accepts nothing, recovery builds a
+bent corridor, then vertical lanes with one bridge. The row serpentine stays a
+diagnostic fallback and is not returned by normal `Generate` for these modes.
 
 Important constants:
 
@@ -259,8 +282,8 @@ Inner candidates/fraction    32
 Fraction schedule offsets    0, ±0.02, ±0.04, ±0.06, ±0.08
 ```
 
-Wall scatter favors clusters of length two or three while retaining a limited number of
-isolated walls. This legacy candidate path is used only by Easy, Medium, and Hard.
+Short-bar scatter still favors clusters of length two or three, with a few isolated
+walls removed. It is one grammar among the five, used only by Easy, Medium, and Hard.
 
 ### Extra Hard structural generation
 
@@ -338,7 +361,11 @@ Not a repetitive serpentine-shaped board
 The weighted score rewards useful walls, branches, stops, perimeter variation, and
 difficulty-appropriate complexity while penalizing isolated-wall noise.
 
-`LevelDifficultyAnalyzer` adds movement-based signals for Extra Hard:
+`LevelDifficultyAnalyzer` ranks every mode by movement shape. `TargetScore` is
+positive for Easy, Medium, and Hard as well as the arena modes. Exact search stays
+bounded. The Extra Hard floor predicate is unchanged.
+
+Signals:
 
 - bounded exact minimum moves on boards with at most 100 paintable cells
 - turns, reversals, and revisited stop positions
@@ -467,8 +494,9 @@ Each file contains exactly one level and its name contains that visible level in
 
 Cache properties:
 
-- lower modes retain version-3 headers and paths
-- Extra Hard uses version-6 headers, so only incompatible Extra Hard files are rejected
+- the folder remains `generated-levels/v3`
+- Easy, Medium, and Hard headers are version 5, so stale version-3 and version-4 files are rejected
+- Extra Hard uses version-7 headers, so stale version-6 files are rejected
 - text format shared with level packs
 - atomic save through a temporary file
 - wrong-size, unparsable, or invalid-topology files are deleted

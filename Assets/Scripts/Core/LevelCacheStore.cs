@@ -19,8 +19,9 @@ namespace PaintMaze.Core
         public LevelCacheStore(string rootDirectory = null, Solver solver = null)
         {
             string basePath = rootDirectory ?? Application.persistentDataPath;
-            // Keep lower modes in their unchanged v3 namespace. Extra Hard files share
-            // this location but carry a v6 header and are rejected individually if stale.
+            // The directory stays on the v3 fingerprint-era folder. File headers carry
+            // LevelGenerator.VersionFor, so a standard v4 or Extra Hard v7 file replaces
+            // a stale header without mixing modes.
             _root = Path.Combine(basePath, "generated-levels", $"v{LevelGenerator.LegacyGeneratorVersion}");
             _solver = solver ?? new Solver();
         }

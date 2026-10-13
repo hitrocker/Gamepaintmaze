@@ -49,7 +49,7 @@ namespace PaintMaze.Menu
                 SpriteFactory.RoundedRect(96, 30));
             shadow.raycastTarget = false;
             UiKit.Anchor(shadow.rectTransform, new Vector2(0.5f, 0.48f), new Vector2(0.5f, 0.5f),
-                new Vector2(870f, 1120f), new Vector2(0f, -14f));
+                new Vector2(870f, 1120f), new Vector2(8f, -14f));
 
             var card = UiKit.Image(safe, "AuthCard", Theme.CardBg,
                 SpriteFactory.RoundedRect(96, 30));

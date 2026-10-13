@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using PaintMaze.Domain;
 
@@ -55,9 +56,9 @@ namespace PaintMaze.Tests
         }
 
         [Test]
-        public void BoardGrowth_IsMonotonicWithinMode()
+        public void ArenaModes_GrowMonotonicallyInsideTheirBands()
         {
-            foreach (Difficulty d in EditModeTestSupport.AllDifficulties)
+            foreach (Difficulty d in new[] { Difficulty.ExtraHard, Difficulty.UltraHard })
             {
                 var cfg = DifficultyConfig.For(d);
                 int prevRows = cfg.BoardRowsFor(1);
@@ -71,6 +72,32 @@ namespace PaintMaze.Tests
                     prevRows = rows;
                     prevCols = cols;
                 }
+            }
+        }
+
+        [Test]
+        public void StandardModes_VarySizeAndObstacleFractionInsideTheBand()
+        {
+            double ultra = DifficultyConfig.For(Difficulty.UltraHard).ObstacleFraction;
+            foreach (Difficulty d in new[] { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard })
+            {
+                DifficultyConfig cfg = DifficultyConfig.For(d);
+                var sizes = new HashSet<(int, int)>();
+                var fractions = new HashSet<string>();
+                for (int level = 1; level <= 40; level++)
+                {
+                    int rows = cfg.BoardRowsFor(level);
+                    int cols = cfg.BoardColsFor(level);
+                    Assert.That(rows, Is.InRange(cfg.BaseRows, cfg.MaxRows), $"{d} rows {level}");
+                    Assert.That(cols, Is.InRange(cfg.BaseCols, cfg.MaxCols), $"{d} cols {level}");
+                    sizes.Add((rows, cols));
+                    double fraction = cfg.ObstacleFractionFor(level);
+                    Assert.Less(fraction, ultra, $"{d} fraction {level}");
+                    fractions.Add(fraction.ToString("0.00"));
+                }
+
+                Assert.GreaterOrEqual(sizes.Count, 2, $"{d} sizes");
+                Assert.GreaterOrEqual(fractions.Count, 2, $"{d} obstacle fractions");
             }
         }
     }

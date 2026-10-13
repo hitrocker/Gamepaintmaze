@@ -56,6 +56,18 @@ namespace PaintMaze.Services
             return Hex(pal[i]);
         }
 
+        public static int PaintIndexForAttempt(
+            int levelIndex,
+            int attemptNumber) =>
+            levelIndex +
+            Mathf.Clamp(attemptNumber, 1, PaintDark.Length) -
+            1;
+
+        public static Color PaintForAttempt(
+            int levelIndex,
+            int attemptNumber) =>
+            Paint(PaintIndexForAttempt(levelIndex, attemptNumber));
+
         // ----- UI chrome -----
         public static Color Ink => Pick("#FFFFFF", "#2E333D");        // primary text
         public static Color InkSoft => Pick("#9AA3B2", "#A29B82");    // muted text
